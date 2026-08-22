@@ -109,6 +109,28 @@
   .card.drag-ghost{position:fixed;z-index:60;margin:0;box-shadow:0 10px 28px rgba(20,24,29,.28);
     pointer-events:none;border-top-color:var(--signal)}
   .no-select, .no-select *{user-select:none;-webkit-user-select:none}
+  .headbtns{display:flex;align-items:center;gap:6px;flex:none}
+  .swapBtn{appearance:none;border:1px solid var(--line-2);background:transparent;border-radius:2px;
+    width:34px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  .swapBtn svg{width:14px;height:14px;stroke:var(--ink-3);stroke-width:2;fill:none;stroke-linecap:square}
+  .card.swapped .swapBtn{border-color:var(--signal)}
+  .card.swapped .swapBtn svg{stroke:var(--signal)}
+
+  /* ---- swap sheet ---- */
+  .sheetBack{position:fixed;inset:0;background:rgba(8,11,14,.45);z-index:70}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:71;max-width:560px;margin:0 auto;
+    background:var(--card);border-top:2px solid var(--ink);max-height:70vh;overflow-y:auto;
+    padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
+  .sheetTitle{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-2);margin-bottom:10px}
+  .opt{display:block;width:100%;text-align:left;appearance:none;background:transparent;border:1px solid var(--line-2);
+    border-radius:2px;padding:10px 12px;margin-bottom:8px;cursor:pointer;font-family:var(--sans);color:var(--ink)}
+  .opt .oname{font-size:15px;font-weight:700}
+  .opt .ometa{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:2px}
+  .opt .ospinal{font-family:var(--mono);font-size:11px;color:var(--deload);margin-top:2px}
+  .opt[aria-pressed="true"]{border-color:var(--signal);outline:1px solid var(--signal);outline-offset:-1px}
+  .opt[aria-pressed="true"] .oname::after{content:" · current";color:var(--signal);
+    font-size:11px;font-family:var(--mono);font-weight:600}
   .tag{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
   .exname{font-size:17px;font-weight:700;letter-spacing:-.01em;margin:1px 0 2px}
   .prescribe{font-family:var(--mono);font-size:12px;color:var(--signal);margin-bottom:10px}
@@ -192,6 +214,13 @@
   </div>
 </div>
 <div class="saving" id="toast">SAVED</div>
+<div id="swapSheet" hidden>
+  <div class="sheetBack"></div>
+  <div class="sheet">
+    <div class="sheetTitle" id="swapTitle"></div>
+    <div id="swapOpts"></div>
+  </div>
+</div>
 
 <script>
 // Apply a forced theme before first paint so dark mode doesn't flash light.
@@ -420,30 +449,47 @@ const PROGRAM = {
   ]
 };
 
-// A PROGRAM entry resolved against the library into everything the UI needs.
-function resolveEx(p){
-  const lib = LIB_EX.get(p.id);
+// The library entry actually occupying a program slot on a given day —
+// the swap replacement if one is stored (and still exists), else the original.
+function effectiveLib(dayKey, programId){
+  const sw = (LOG.swaps[dayKey] || {})[programId];
+  return LIB_EX.get(sw && LIB_EX.has(sw) ? sw : programId);
+}
+
+/* A PROGRAM entry resolved against the library into everything the UI needs.
+   When the slot is swapped, the replacement brings its own reps/cue/start:
+   the PROGRAM overrides were written for the original exercise, so they only
+   apply while the original occupies the slot. Set counts always come from
+   PROGRAM — the training plan owns volume regardless of what fills the slot. */
+function resolveEx(p, dayKey){
+  const lib = effectiveLib(dayKey, p.id);
+  const swapped = lib.id !== p.id;
   return {
-    id: p.id, sets: p.sets, start: p.start,
+    programId: p.id, id: lib.id, swapped,
+    sets: p.sets, start: swapped ? null : p.start,
     name: lib.name, muscle: lib.muscle, unit: lib.unit,
     slot: lib.slot, equipment: lib.equipment, spinalLoad: lib.spinalLoad,
-    reps: p.reps ?? lib.reps ?? LIBRARY.slots[lib.slot].defaultReps,
-    cue: p.cue ?? lib.cue ?? null
+    reps: (!swapped ? p.reps : null) ?? lib.reps ?? LIBRARY.slots[lib.slot].defaultReps,
+    cue: (!swapped ? p.cue : null) ?? lib.cue ?? null
   };
 }
 
 /* ---- storage ----
    Everything lives under one localStorage key as a versioned envelope:
-   { schemaVersion, updatedAt, settings, mesos: { <mesoId>: { sets, notes, order } } }
+   { schemaVersion, updatedAt, settings, mesos: { <mesoId>: { sets, notes, order, swaps } } }
    settings: { theme: "auto" | "light" | "dark" }
    sets:  "week|day|exercise id|setIdx" -> {weight, reps, done}  (weight/reps: number or null)
    notes: "week|day|exercise id" -> string
-   order: dayKey -> [exercise ids], drag-to-reorder override of PROGRAM order
+   order: dayKey -> [program exercise ids], drag-to-reorder override of PROGRAM order
+   swaps: dayKey -> { programExId: replacementExId }, same-slot substitutions.
+   Sets/notes key by the EFFECTIVE (displayed) id, so each exercise keeps its
+   own history and swapping back restores it; order and swaps key by the
+   PROGRAM id, which names the slot occupant and never changes.
    Keyed by stable library exercise id (since v4; names before that), so
    renames, reorders and swaps never mislabel old logs.
    Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
 const STORE_KEY = "meso-tracker";
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const MESO_ID = "meso01";
 
 /* v3 -> v4: exact display-name -> library-id table for every exercise that has
@@ -503,7 +549,9 @@ const MIGRATIONS = {
       });
     });
     return s;
-  }
+  },
+  // v5 added per-day same-slot exercise swaps
+  4: s => { Object.values(s.mesos).forEach(m => { m.swaps = m.swaps || {}; }); return s; }
 };
 
 function freshStore(){ return {schemaVersion:SCHEMA_VERSION, updatedAt:null, settings:{theme:"auto"}, mesos:{}}; }
@@ -563,11 +611,12 @@ function save(){
 async function load(){
   STORE = await storage.get();
   STORE.settings = STORE.settings || {theme:"auto"};
-  if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}, order:{}};
+  if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}, order:{}, swaps:{}};
   LOG = STORE.mesos[MESO_ID];
   LOG.sets = LOG.sets || {};
   LOG.notes = LOG.notes || {};
   LOG.order = LOG.order || {};
+  LOG.swaps = LOG.swaps || {};
 }
 
 function dayObj(){ return PROGRAM.days.find(d=>d.key===D); }
@@ -578,10 +627,10 @@ function weekObj(){ return PROGRAM.weeks[W-1]; }
 // PROGRAM later) appended in PROGRAM order.
 function exList(){
   const d = dayObj();
-  const list = d.ex.map(resolveEx);
+  const list = d.ex.map(p=>resolveEx(p, d.key));
   const ord = LOG.order[d.key];
   if(!ord || !ord.length) return list;
-  const byId = new Map(list.map(e=>[e.id,e]));
+  const byId = new Map(list.map(e=>[e.programId,e]));
   const out = [];
   ord.forEach(id=>{ if(byId.has(id)){ out.push(byId.get(id)); byId.delete(id); } });
   byId.forEach(e=>out.push(e));
@@ -629,17 +678,22 @@ function renderDay(){
     }).join("");
     const allDone = Array.from({length:n},(_,si)=>LOG.sets[cell(W,D,ex.id,si)]?.done).every(Boolean);
     const noteVal = LOG.notes[`${W}|${D}|${ex.id}`] || "";
-    return `<div class="card ${allDone?'done':''}" data-ex="${ex.id}">
+    return `<div class="card ${allDone?'done':''} ${ex.swapped?'swapped':''}" data-ex="${ex.programId}">
       <div class="exhead">
         <div>
-          <div class="tag">${ex.muscle}</div>
+          <div class="tag">${ex.muscle}${ex.swapped?' · swapped in':''}</div>
           <div class="exname">${ex.name}</div>
         </div>
-        <div class="grip" aria-hidden="true"><svg viewBox="0 0 10 16">
-          <circle cx="2.5" cy="2" r="1.6"/><circle cx="7.5" cy="2" r="1.6"/>
-          <circle cx="2.5" cy="8" r="1.6"/><circle cx="7.5" cy="8" r="1.6"/>
-          <circle cx="2.5" cy="14" r="1.6"/><circle cx="7.5" cy="14" r="1.6"/>
-        </svg></div>
+        <div class="headbtns">
+          <button class="swapBtn" data-e="${ei}" aria-label="Swap ${ex.name} for another ${LIBRARY.slots[ex.slot].label.toLowerCase()} exercise">
+            <svg viewBox="0 0 24 24"><path d="M4 7h13M14 3l4 4-4 4M20 17H7M10 13l-4 4 4 4"/></svg>
+          </button>
+          <div class="grip" aria-hidden="true"><svg viewBox="0 0 10 16">
+            <circle cx="2.5" cy="2" r="1.6"/><circle cx="7.5" cy="2" r="1.6"/>
+            <circle cx="2.5" cy="8" r="1.6"/><circle cx="7.5" cy="8" r="1.6"/>
+            <circle cx="2.5" cy="14" r="1.6"/><circle cx="7.5" cy="14" r="1.6"/>
+          </svg></div>
+        </div>
       </div>
       <div class="prescribe">${n} × ${ex.reps}${ex.unit?` · ${ex.unit}`:""} · ${weekObj().rir} RIR</div>
       ${ex.cue?`<div class="cue">${ex.cue}</div>`:""}
@@ -653,7 +707,7 @@ function renderDay(){
 function renderVolume(){
   const tally = {};
   PROGRAM.days.forEach(d=>d.ex.forEach(ex=>{
-    const m = LIB_EX.get(ex.id).muscle;
+    const m = effectiveLib(d.key, ex.id).muscle;
     tally[m] = (tally[m]||0) + ex.sets[W-1];
   }));
   const entries = Object.entries(tally).sort((a,b)=>b[1]-a[1]);
@@ -829,8 +883,45 @@ function endDrag(commit){
   }
 }
 
+/* ---- exercise swap sheet ----
+   Tap the card's swap button to list same-slot library alternatives. Choosing
+   one stores swaps[day][programId] = replacementId; choosing the original
+   removes the override. Logged sets are never touched — each exercise's
+   history lives under its own id, so swapping back restores it. */
+function openSwapSheet(ex){
+  $("swapTitle").textContent = `${LIBRARY.slots[ex.slot].label} — swap for`;
+  $("swapOpts").innerHTML = LIBRARY.exercises.filter(o=>o.slot===ex.slot).map(o=>{
+    const spinal = o.spinalLoad !== ex.spinalLoad
+      ? `<div class="ospinal">spinal load ${o.spinalLoad} (current: ${ex.spinalLoad})</div>` : "";
+    return `<button class="opt" data-swap-to="${o.id}" data-program="${ex.programId}" aria-pressed="${o.id===ex.id}">
+      <div class="oname">${o.name}</div>
+      <div class="ometa">${o.equipment.join(" · ")}</div>
+      ${spinal}
+    </button>`;
+  }).join("");
+  $("swapSheet").hidden = false;
+}
+
+function closeSwapSheet(){ $("swapSheet").hidden = true; }
+
+document.addEventListener("click", e=>{
+  const sb = e.target.closest(".swapBtn");
+  if(sb){ openSwapSheet(exList()[sb.dataset.e]); return; }
+  const opt = e.target.closest(".opt");
+  if(opt){
+    const pid = opt.dataset.program, to = opt.dataset.swapTo;
+    LOG.swaps[D] = LOG.swaps[D] || {};
+    if(to === pid) delete LOG.swaps[D][pid];
+    else LOG.swaps[D][pid] = to;
+    if(!Object.keys(LOG.swaps[D]).length) delete LOG.swaps[D];
+    save(); closeSwapSheet(); render();
+    return;
+  }
+  if(e.target.closest(".sheetBack")){ closeSwapSheet(); return; }
+});
+
 $("days").addEventListener("pointerdown", e=>{
-  if(!e.isPrimary || !e.target.closest(".exhead")) return;
+  if(!e.isPrimary || e.target.closest(".swapBtn") || !e.target.closest(".exhead")) return;
   drag = {card: e.target.closest(".card"), pid: e.pointerId,
           startX: e.clientX, startY: e.clientY, started: false,
           timer: setTimeout(beginDrag, HOLD_MS)};
