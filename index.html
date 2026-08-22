@@ -6,6 +6,7 @@
 <title>Meso 01</title>
 <style>
   :root{
+    color-scheme:light;
     --ink:#14181d;
     --ink-2:#4a555f;
     --ink-3:#7d8892;
@@ -16,8 +17,59 @@
     --signal:#1b5e8c;
     --logged:#146b52;
     --deload:#8a4a1f;
+    --banner-bg:#f3ece6;
+    --banner-ink:#6b4526;
+    --cue-bg:#eceff1;
+    --field:#fff;
+    --field-logged:#eef1f2;
+    --placeholder:#a8b1b8;
     --mono:ui-monospace,"SF Mono",Menlo,"Roboto Mono","Courier New",monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  /* Dark palette. Applied when the system prefers dark (unless the user forced
+     light), and when the user forced dark. Same tokens, same accent semantics:
+     blue = prescribed, green = logged, amber = deload. The block appears twice
+     because CSS can't share it between a media query and an attribute selector
+     without a build step — keep both copies identical. */
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      color-scheme:dark;
+      --ink:#e6eaed;
+      --ink-2:#aab4bd;
+      --ink-3:#8a95a0;
+      --paper:#111519;
+      --card:#1a2026;
+      --line:#3d4750;
+      --line-2:#272e35;
+      --signal:#82b8de;
+      --logged:#35977a;
+      --deload:#c58e55;
+      --banner-bg:#271e15;
+      --banner-ink:#d9b48b;
+      --cue-bg:#232a31;
+      --field:#12161a;
+      --field-logged:#20262d;
+      --placeholder:#5d6873;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --ink:#e6eaed;
+    --ink-2:#aab4bd;
+    --ink-3:#8a95a0;
+    --paper:#111519;
+    --card:#1a2026;
+    --line:#3d4750;
+    --line-2:#272e35;
+    --signal:#82b8de;
+    --logged:#35977a;
+    --deload:#c58e55;
+    --banner-bg:#271e15;
+    --banner-ink:#d9b48b;
+    --cue-bg:#232a31;
+    --field:#12161a;
+    --field-logged:#20262d;
+    --placeholder:#5d6873;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.4}
@@ -29,6 +81,10 @@
   .brand{font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
   .rir{font-family:var(--mono);font-size:12px;color:var(--ink-2);letter-spacing:.02em}
   .rir b{color:var(--signal);font-size:14px}
+  .hright{display:flex;align-items:baseline;gap:10px}
+  .themeBtn{appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink-2);
+    font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+    padding:5px 8px;border-radius:2px;cursor:pointer;min-width:52px}
   .seg{display:flex;gap:6px;margin-bottom:8px}
   .seg button{flex:1;appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink-2);
     font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
@@ -38,8 +94,8 @@
   .daymeta{font-size:12px;color:var(--ink-3);padding:0 0 10px;display:flex;justify-content:space-between;font-family:var(--mono)}
 
   /* ---- deload banner ---- */
-  .banner{margin:12px 14px 0;padding:10px 12px;border-left:3px solid var(--deload);background:#f3ece6;
-    font-size:13px;color:#6b4526}
+  .banner{margin:12px 14px 0;padding:10px 12px;border-left:3px solid var(--deload);background:var(--banner-bg);
+    font-size:13px;color:var(--banner-ink)}
 
   /* ---- exercise card ---- */
   .card{background:var(--card);border:1px solid var(--line-2);border-top:2px solid var(--ink);
@@ -56,7 +112,7 @@
   .tag{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
   .exname{font-size:17px;font-weight:700;letter-spacing:-.01em;margin:1px 0 2px}
   .prescribe{font-family:var(--mono);font-size:12px;color:var(--signal);margin-bottom:10px}
-  .cue{font-size:12px;color:var(--ink-2);background:#eceff1;border-left:2px solid var(--line);
+  .cue{font-size:12px;color:var(--ink-2);background:var(--cue-bg);border-left:2px solid var(--line);
     padding:6px 8px;margin:0 0 10px}
 
   /* ---- set rows ---- */
@@ -67,22 +123,22 @@
   .setno{font-family:var(--mono);font-size:13px;color:var(--ink-3);text-align:center}
   .fieldwrap{position:relative}
   input[type=number]{width:100%;appearance:none;-moz-appearance:textfield;border:1px solid var(--line);
-    background:#fff;border-radius:2px;padding:11px 8px 11px;font-family:var(--mono);font-size:17px;
+    background:var(--field);border-radius:2px;padding:11px 8px 11px;font-family:var(--mono);font-size:17px;
     font-weight:600;color:var(--ink);text-align:center}
   input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   input:focus{outline:2px solid var(--signal);outline-offset:-1px;border-color:var(--signal)}
   .ghost{display:block;font-family:var(--mono);font-size:10px;color:var(--ink-3);text-align:center;padding-top:2px;min-height:13px}
-  .chk{width:46px;height:44px;border:1px solid var(--line);background:#fff;border-radius:2px;cursor:pointer;
+  .chk{width:46px;height:44px;border:1px solid var(--line);background:var(--field);border-radius:2px;cursor:pointer;
     display:flex;align-items:center;justify-content:center;padding:0}
   .chk svg{width:18px;height:18px;stroke:var(--line);stroke-width:3;fill:none;stroke-linecap:square}
   .chk[aria-pressed="true"]{background:var(--logged);border-color:var(--logged)}
   .chk[aria-pressed="true"] svg{stroke:#fff}
-  .row.logged input{color:var(--ink-2);background:#eef1f2}
+  .row.logged input{color:var(--ink-2);background:var(--field-logged)}
 
   .note{width:100%;border:none;border-top:1px solid var(--line-2);background:transparent;padding:9px 2px;
     font-family:var(--sans);font-size:13px;color:var(--ink-2);resize:none;margin-top:6px}
   .note:focus{outline:none;color:var(--ink)}
-  .note::placeholder{color:#a8b1b8}
+  .note::placeholder{color:var(--placeholder)}
 
   /* ---- volume sheet ---- */
   .vol{margin:18px 14px 0;border-top:1px solid var(--line)}
@@ -110,7 +166,10 @@
   <header>
     <div class="brandrow">
       <div class="brand">Meso 01 · Rebalanced</div>
-      <div class="rir" id="rirLabel"></div>
+      <div class="hright">
+        <div class="rir" id="rirLabel"></div>
+        <button class="themeBtn" id="themeBtn" aria-label="Color theme">auto</button>
+      </div>
     </div>
     <div class="seg weeks" id="weekSeg"></div>
     <div class="seg days" id="daySeg"></div>
@@ -125,12 +184,22 @@
   <div class="foot">
     Log working sets only — keep warm-ups off the sheet. Hit the top of the rep range on every set at the
     target RIR and add load next week; otherwise repeat the weight and chase reps.
-    <br><br><button id="resetBtn">Clear all logged data</button>
+    <br><br>
+    <button id="exportBtn">Export data</button> ·
+    <button id="importBtn">Import data</button> ·
+    <button id="resetBtn">Clear all logged data</button>
+    <input type="file" id="importFile" accept=".json,application/json" hidden>
   </div>
 </div>
 <div class="saving" id="toast">SAVED</div>
 
 <script>
+// Apply a forced theme before first paint so dark mode doesn't flash light.
+try{
+  const t = JSON.parse(localStorage.getItem("meso-tracker"))?.settings?.theme;
+  if(t==="dark"||t==="light") document.documentElement.dataset.theme = t;
+}catch(e){}
+
 const PROGRAM = {
   weeks: [
     {n:1, rir:"3", note:null},
@@ -184,7 +253,8 @@ const PROGRAM = {
 
 /* ---- storage ----
    Everything lives under one localStorage key as a versioned envelope:
-   { schemaVersion, updatedAt, mesos: { <mesoId>: { sets, notes } } }
+   { schemaVersion, updatedAt, settings, mesos: { <mesoId>: { sets, notes, order } } }
+   settings: { theme: "auto" | "light" | "dark" }
    sets:  "week|day|exercise name|setIdx" -> {weight, reps, done}  (weight/reps: number or null)
    notes: "week|day|exercise name" -> string
    order: dayKey -> [exercise names], drag-to-reorder override of PROGRAM order
@@ -192,16 +262,18 @@ const PROGRAM = {
    exercises in PROGRAM never mislabels old logs.
    Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
 const STORE_KEY = "meso-tracker";
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const MESO_ID = "meso01";
 
 // MIGRATIONS[n] upgrades a store from schemaVersion n to n+1.
 const MIGRATIONS = {
   // v2 added per-day exercise order overrides
-  1: s => { Object.values(s.mesos).forEach(m => { m.order = m.order || {}; }); return s; }
+  1: s => { Object.values(s.mesos).forEach(m => { m.order = m.order || {}; }); return s; },
+  // v3 added app settings (theme)
+  2: s => { s.settings = s.settings || {theme:"auto"}; return s; }
 };
 
-function freshStore(){ return {schemaVersion:SCHEMA_VERSION, updatedAt:null, mesos:{}}; }
+function freshStore(){ return {schemaVersion:SCHEMA_VERSION, updatedAt:null, settings:{theme:"auto"}, mesos:{}}; }
 
 function migrate(store){
   while(store.schemaVersion < SCHEMA_VERSION){
@@ -257,6 +329,7 @@ function save(){
 
 async function load(){
   STORE = await storage.get();
+  STORE.settings = STORE.settings || {theme:"auto"};
   if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}, order:{}};
   LOG = STORE.mesos[MESO_ID];
   LOG.sets = LOG.sets || {};
@@ -355,6 +428,84 @@ function renderVolume(){
 }
 
 function render(){ renderHeader(); renderDay(); renderVolume(); }
+
+function toastMsg(msg){
+  const t=$("toast"); t.textContent=msg; t.classList.add("on");
+  setTimeout(()=>{t.classList.remove("on"); t.textContent="SAVED";},1400);
+}
+
+/* ---- theme ---- */
+function applyTheme(){
+  const t = STORE.settings.theme;
+  if(t==="dark"||t==="light") document.documentElement.dataset.theme = t;
+  else delete document.documentElement.dataset.theme;
+  $("themeBtn").textContent = t;
+}
+
+/* ---- export / import ----
+   Export downloads the whole envelope verbatim. Import validates and migrates
+   a parsed copy first, then stashes the current envelope under .backup and
+   swaps in the file — all-or-nothing, storage is never half-written. The
+   file's own updatedAt is kept (storage.set would restamp it). */
+function exportData(){
+  const d = new Date();
+  const pad = n => String(n).padStart(2,"0");
+  const name = `meso-tracker-${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}.json`;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(STORE,null,2)], {type:"application/json"}));
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  toastMsg("EXPORTED");
+}
+
+function describeEnvelope(s){
+  let sets=0, notes=0;
+  Object.values(s.mesos||{}).forEach(m=>{
+    sets += Object.keys(m.sets||{}).length;
+    notes += Object.keys(m.notes||{}).length;
+  });
+  return `${sets} logged sets, ${notes} notes` + (s.updatedAt ? `, saved ${s.updatedAt.slice(0,10)}` : "");
+}
+
+async function importData(text){
+  let s;
+  try{ s = JSON.parse(text); }
+  catch(err){ alert("Import failed: the file isn't valid JSON."); return false; }
+  if(!s || typeof s!=="object" || Array.isArray(s)){
+    alert(`Import failed: expected a JSON object, got ${Array.isArray(s)?"an array":typeof s}.`); return false;
+  }
+  if(typeof s.schemaVersion!=="number"){
+    alert("Import failed: no schemaVersion field — this doesn't look like a meso-tracker export."); return false;
+  }
+  if(s.schemaVersion > SCHEMA_VERSION){
+    alert(`Import failed: the file is schema v${s.schemaVersion}, but this app only knows v${SCHEMA_VERSION}. Update the app, then import.`); return false;
+  }
+  if(!s.mesos || typeof s.mesos!=="object" || Array.isArray(s.mesos)){
+    alert("Import failed: no mesos object — this doesn't look like a meso-tracker export."); return false;
+  }
+  for(let v=s.schemaVersion; v<SCHEMA_VERSION; v++){
+    if(!MIGRATIONS[v]){ alert(`Import failed: no migration path from schema v${s.schemaVersion} to v${SCHEMA_VERSION}.`); return false; }
+  }
+  while(s.schemaVersion < SCHEMA_VERSION){
+    s = MIGRATIONS[s.schemaVersion](s);
+    s.schemaVersion++;
+  }
+  if(!confirm(`Replace what's on this device (${describeEnvelope(STORE)}) with the file (${describeEnvelope(s)})?\n\nThe current data is stashed under the backup key first.`)) return false;
+  backupRaw(JSON.stringify(STORE));
+  localStorage.setItem(STORE_KEY, JSON.stringify(s));
+  await load();
+  applyTheme();
+  render();
+  toastMsg("IMPORTED");
+  return true;
+}
+
+$("importFile").addEventListener("change", async e=>{
+  const f = e.target.files[0];
+  e.target.value = "";
+  if(f) importData(await f.text());
+});
 
 /* ---- hold-and-drag to reorder exercises ----
    Hold the exercise header ~1/3s, then drag. Before the hold completes the
@@ -471,6 +622,14 @@ document.addEventListener("click", e=>{
     save(); renderDay();
     return;
   }
+  if(e.target.id==="themeBtn"){
+    const cycle = ["auto","dark","light"];
+    STORE.settings.theme = cycle[(cycle.indexOf(STORE.settings.theme)+1)%3];
+    applyTheme(); save();
+    return;
+  }
+  if(e.target.id==="exportBtn"){ exportData(); return; }
+  if(e.target.id==="importBtn"){ $("importFile").click(); return; }
   if(e.target.id==="resetBtn"){
     if(confirm("Clear every logged weight, rep and note in this meso? The program itself stays.")){
       LOG.sets = {}; LOG.notes = {}; save(); render();
@@ -494,7 +653,7 @@ document.addEventListener("input", e=>{
   }
 });
 
-(async ()=>{ await load(); render(); })();
+(async ()=>{ await load(); applyTheme(); render(); })();
 </script>
 </body>
 </html>
