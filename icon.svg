@@ -1,0 +1,8 @@
+<!-- Source for the app icons (icon-*.png are rendered from these shapes).
+     Design language of the app itself: dark card background, the green top
+     stripe of a completed exercise card, and the done-checkmark glyph. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#1a2026"/>
+  <rect width="512" height="20" fill="#35977a"/>
+  <path d="M128 272 L208 352 L384 160" fill="none" stroke="#35977a" stroke-width="56" stroke-linecap="square"/>
+</svg>
