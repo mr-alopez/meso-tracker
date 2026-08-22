@@ -1,6 +1,6 @@
 # Load Progression Spec — meso-tracker
 
-Version 1.0 · 22 Aug 2026
+Version 1.1 · 22 Aug 2026 — §4 revised: jump feasibility gate supersedes the flat 10% threshold; `P_UNPROGRESSABLE` added to §8
 
 This document defines the load progression rules for the meso tracker. It is written
 to be encoded verbatim. Every rule is deterministic given the stored data. Items
@@ -86,22 +86,36 @@ set would require sandbagging the early sets.
 
 ---
 
-## 4. Big-jump gate
+## 4. Jump feasibility gate
 
 Applied only when the class is `P_PASS`.
 
 ```
-if jumpPct > 0.10 and first.reps < range.top + 2:
-    class = P_GATED
+estimatedRepLoss = ceil(jumpPct / 0.03)
+requiredReps     = range.bottom + estimatedRepLoss
+ceiling          = range.top + 6
+
+if requiredReps > ceiling:        class = P_UNPROGRESSABLE
+elif first.reps < requiredReps:   class = P_GATED
 ```
 
-Prevents disproportionate increases on light loads. Worked example: lateral raise at
-10 lb, range 12–20, step 5 lb → `jumpPct` = 50%, so 22 reps on set 1 are required
-before 15s unlock.
+The condition asks whether enough reps are in hand that, after the expected
+loss from the added load, set 1 still lands at or above the bottom of the
+range. Roughly 3% added load costs one rep; this is a heuristic, and it
+understates the loss at high rep counts, which errs conservative. **[revisit]**
 
-**[revisit]** For high-rep small-muscle work this gate can stall for a long time. The
-correct fix is a set addition rather than a load increase, which belongs to the
-unspecified volume system. Until then, stalling is the conservative outcome.
+`P_UNPROGRESSABLE` means the smallest available increment cannot be absorbed
+by this rep range at this load — the lift is not progressable by load until
+smaller increments exist or the load grows. It is a hold, not an error.
+
+Text:
+
+| Class | Suggestion text |
+|---|---|
+| `P_GATED` | `repeat {load} — need {requiredReps}+ before {load+step}` |
+| `P_UNPROGRESSABLE` | `{step} is too big a jump here — hold {load} and add reps` |
+
+In §8, `P_UNPROGRESSABLE` × any effort → hold, using the text above.
 
 ---
 
@@ -161,6 +175,7 @@ load is wrong regardless of how it felt.
 | `P_GATED` | easy | `HOLD_GATE` | `repeat {load} — need {top+2}+ before {load+step}` |
 | `P_GATED` | right | `HOLD_GATE` | `repeat {load} — need {top+2}+ before {load+step}` |
 | `P_GATED` | brutal | `HOLD` | `repeat {load} — chase {top}+` |
+| `P_UNPROGRESSABLE` | any | `HOLD` | `{step} is too big a jump here — hold {load} and add reps` |
 | `P_HOLD` | easy | `HOLD_PUSH` | `repeat {load} — take it closer to {rir} RIR` |
 | `P_HOLD` | right | `HOLD` | `repeat {load} — chase {top}+` |
 | `P_HOLD` | brutal | `HOLD` | `repeat {load} — chase {top}+` |
