@@ -627,6 +627,107 @@ async function load(){
   LOG.swaps = LOG.swaps || {};
 }
 
+/* ---- load progression rule engine ----
+   Encodes load-progression-spec.md v1.0 verbatim. Pure function: plain data
+   in, {outcome, cls, load, text} out. No DOM, no storage, no globals.
+   `outcome` is the matrix/§9 outcome; `cls` is the §3 performance class
+   (null outside the matrix path) so tests can assert on classification.
+   Optional `rir` overrides the built-in week→RIR table for the text
+   placeholders; `step` must already include any per-exercise override. */
+const WEEK_RIR_TEXT = {1:"3", 2:"2", 3:"1", 4:"4–5"};
+
+function suggestLoad({priorSets, prescribed, range, step, equipment, feedback, currentWeek, startLoad, rir}){
+  rir = rir ?? WEEK_RIR_TEXT[currentWeek] ?? "";
+  const effort = (feedback && feedback.effort) || "right";   // §1: absent → "right"
+  const pain = !!(feedback && feedback.pain);
+
+  // §1: a set qualifies on reps > 0; the done checkbox is ignored.
+  const q = (priorSets || []).filter(s => typeof s.reps === "number" && s.reps > 0);
+  const n = q.length;
+  const first = q[0], last = q[n-1];
+  const mixedLoad = n > 0 && q.some(s => s.weight !== q[0].weight);
+  const workingLoad = n > 0 && !mixedLoad ? q[0].weight : null;
+
+  // §2 rounding: round down to step, never below one step
+  const roundDown = v => Math.max(step, Math.floor(v/step)*step);
+
+  // §5.1 — week 4: no progression suggestion, ever
+  if(currentWeek === 4){
+    if(equipment === "bodyweight" || workingLoad == null)
+      return {outcome:"DELOAD", cls:null, load:null, text:`${WEEK_RIR_TEXT[4]} RIR, stop early`};
+    const dl = roundDown(workingLoad * 0.70);   // §7
+    return {outcome:"DELOAD", cls:null, load:dl, text:`${dl} — ${WEEK_RIR_TEXT[4]} RIR, stop early`};
+  }
+  // §5.2 — no prior data (§6 second row supplies the bodyweight text)
+  if(n === 0){
+    if(equipment === "bodyweight")
+      return {outcome:"BODYWEIGHT", cls:null, load:null, text:"2 shy of failure"};
+    if(startLoad != null)
+      return {outcome:"NO_DATA", cls:null, load:startLoad, text:`start ${startLoad}`};
+    return {outcome:"NO_DATA", cls:null, load:null, text:`find it — ${range.top} reps, ${rir} in reserve`};
+  }
+  // §5.3 — pain: unconditional override, never increases load
+  if(pain){
+    const l = workingLoad ?? last.weight;
+    return {outcome:"PAIN", cls:null, load:l, text:`hold ${l} — or swap the movement`};
+  }
+  // §5.4 — bodyweight progresses by reps only (§6)
+  if(equipment === "bodyweight")
+    return {outcome:"BODYWEIGHT", cls:null, load:null, text:`beat ${last.reps} on the last set`};
+  // §5.5 — mixed loads are unevaluable
+  if(mixedLoad)
+    return {outcome:"MIXED", cls:null, load:null, text:"pick one weight and hold it"};
+  // §5.6 — fewer qualifying sets than prescribed
+  if(n < prescribed)
+    return {outcome:"INCOMPLETE", cls:null, load:workingLoad, text:`repeat ${workingLoad} — finish all ${prescribed} sets`};
+
+  // §3 — performance classification, first match wins
+  let cls;
+  if(first.reps < range.bottom)      cls = "P_FAIL";
+  else if(last.reps < range.bottom)  cls = "P_DROP";
+  else if(first.reps >= range.top)   cls = "P_PASS";
+  else                               cls = "P_HOLD";
+
+  // §4 — jump feasibility gate, only on P_PASS: can set 1 absorb the jump
+  // (~1 rep lost per 3% added load) and still clear the bottom of the range?
+  const jumpPct = step / workingLoad;
+  let requiredReps = null;
+  if(cls === "P_PASS"){
+    requiredReps = range.bottom + Math.ceil(jumpPct / 0.03);
+    if(requiredReps > range.top + 6) cls = "P_UNPROGRESSABLE";
+    else if(first.reps < requiredReps) cls = "P_GATED";
+  }
+
+  // §2 double-step clause
+  let inc = step;
+  if(cls === "P_PASS" && jumpPct < 0.03 && first.reps >= range.top + 2) inc = 2*step;
+
+  // §8 — decision matrix
+  const load = workingLoad;
+  if(cls === "P_PASS"){
+    if(effort === "brutal")
+      return {outcome:"HOLD_RIR", cls, load, text:`repeat ${load} — same reps, more in reserve`};
+    return {outcome:"ADD", cls, load: load+inc, text:`${load} ✓ → try ${load+inc}`};
+  }
+  if(cls === "P_UNPROGRESSABLE")
+    return {outcome:"HOLD", cls, load, text:`${step} is too big a jump here — hold ${load} and add reps`};
+  if(cls === "P_GATED"){
+    if(effort === "brutal")
+      return {outcome:"HOLD", cls, load, text:`repeat ${load} — chase ${range.top}+`};
+    return {outcome:"HOLD_GATE", cls, load, text:`repeat ${load} — need ${requiredReps}+ before ${load+step}`};
+  }
+  if(cls === "P_HOLD"){
+    if(effort === "easy")
+      return {outcome:"HOLD_PUSH", cls, load, text:`repeat ${load} — take it closer to ${rir} RIR`};
+    return {outcome:"HOLD", cls, load, text:`repeat ${load} — chase ${range.top}+`};
+  }
+  if(cls === "P_DROP")
+    return {outcome:"HOLD", cls, load, text:`repeat ${load} — chase ${range.top}+`};
+  // P_FAIL — feedback ignored entirely (§8)
+  const down = Math.max(step, load - step);
+  return {outcome:"REDUCE", cls, load: down, text:`drop to ${down} — ${range.bottom}+ clean`};
+}
+
 function dayObj(){ return PROGRAM.days.find(d=>d.key===D); }
 function weekObj(){ return PROGRAM.weeks[W-1]; }
 
