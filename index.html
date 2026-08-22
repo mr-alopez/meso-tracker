@@ -490,6 +490,9 @@ function resolveEx(p, dayKey){
    notes: "week|day|exercise id" -> string
    order: dayKey -> [program exercise ids], drag-to-reorder override of PROGRAM order
    swaps: dayKey -> { programExId: replacementExId }, same-slot substitutions.
+   feedback: "week|day|exercise id" -> {effort, pain}; effort "easy"|"right"|"brutal".
+   Feedback is optional and additive: absence is treated as "right" at READ
+   time only — stored absence and a stored explicit "right" stay distinct.
    Sets/notes key by the EFFECTIVE (displayed) id, so each exercise keeps its
    own history and swapping back restores it; order and swaps key by the
    PROGRAM id, which names the slot occupant and never changes.
@@ -497,7 +500,7 @@ function resolveEx(p, dayKey){
    renames, reorders and swaps never mislabel old logs.
    Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
 const STORE_KEY = "meso-tracker";
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 const MESO_ID = "meso01";
 
 /* v3 -> v4: exact display-name -> library-id table for every exercise that has
@@ -559,7 +562,14 @@ const MIGRATIONS = {
     return s;
   },
   // v5 added per-day same-slot exercise swaps
-  4: s => { Object.values(s.mesos).forEach(m => { m.swaps = m.swaps || {}; }); return s; }
+  4: s => { Object.values(s.mesos).forEach(m => { m.swaps = m.swaps || {}; }); return s; },
+  // v6 added per-exercise progression feedback. Purely additive: an empty
+  // container only — no defaults backfilled, logged sets untouched.
+  5: s => {
+    backupRaw(JSON.stringify(s));
+    Object.values(s.mesos).forEach(m => { m.feedback = m.feedback || {}; });
+    return s;
+  }
 };
 
 function freshStore(){ return {schemaVersion:SCHEMA_VERSION, updatedAt:null, settings:{theme:"auto"}, mesos:{}}; }
@@ -619,12 +629,13 @@ function save(){
 async function load(){
   STORE = await storage.get();
   STORE.settings = STORE.settings || {theme:"auto"};
-  if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}, order:{}, swaps:{}};
+  if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}, order:{}, swaps:{}, feedback:{}};
   LOG = STORE.mesos[MESO_ID];
   LOG.sets = LOG.sets || {};
   LOG.notes = LOG.notes || {};
   LOG.order = LOG.order || {};
   LOG.swaps = LOG.swaps || {};
+  LOG.feedback = LOG.feedback || {};
 }
 
 /* ---- load progression rule engine ----
