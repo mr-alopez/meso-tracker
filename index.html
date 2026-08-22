@@ -491,6 +491,7 @@ function resolveEx(p, dayKey){
     sets: p.sets, start: swapped ? null : p.start,
     name: lib.name, muscle: lib.muscle, unit: lib.unit,
     slot: lib.slot, equipment: lib.equipment, spinalLoad: lib.spinalLoad,
+    loadSense: lib.loadSense,          // absent → the engine defaults it to "weight"
     reps: (!swapped ? p.reps : null) ?? lib.reps ?? LIBRARY.slots[lib.slot].defaultReps,
     cue: (!swapped ? p.cue : null) ?? lib.cue ?? null
   };
@@ -653,104 +654,137 @@ async function load(){
 }
 
 /* ---- load progression rule engine ----
-   Encodes load-progression-spec.md v1.0 verbatim. Pure function: plain data
-   in, {outcome, cls, load, text} out. No DOM, no storage, no globals.
-   `outcome` is the matrix/§9 outcome; `cls` is the §3 performance class
-   (null outside the matrix path) so tests can assert on classification.
-   Optional `rir` overrides the built-in week→RIR table for the text
-   placeholders; `step` must already include any per-exercise override. */
+   Encodes load-progression-spec.md v1.4 verbatim. Pure function: plain data
+   in, the §5.1 contract out — {class, outcome, load, text}. No DOM, no
+   storage, no globals; callable from a console.
+   §5.1 invariant: `class` is non-null if and only if `outcome` came from the
+   §8 matrix. Every path that short-circuits inside §6 returns class null.
+   `weekSets` maps week number → that week's logged sets; the suggestion for
+   week N reads week N−1, and §7/§7.1's deload cascades walk weeks 3, 2, 1.
+   `step` must already include any per-exercise override. */
 const WEEK_RIR_TEXT = {1:"3", 2:"2", 3:"1", 4:"4–5"};
 
-function suggestLoad({priorSets, prescribed, range, step, equipment, feedback, currentWeek, startLoad, rir}){
+function suggestLoad({weekSets, prescribed, range, step, loadSense, feedback, currentWeek, startLoad, rir}){
   rir = rir ?? WEEK_RIR_TEXT[currentWeek] ?? "";
+  const sense  = loadSense ?? "weight";                      // §1: absent → "weight"
   const effort = (feedback && feedback.effort) || "right";   // §1: absent → "right"
-  const pain = !!(feedback && feedback.pain);
+  const pain   = !!(feedback && feedback.pain);
+  const bottom = range.bottom, top = range.top;
 
   // §1: a set qualifies on reps > 0; the done checkbox is ignored.
-  const q = (priorSets || []).filter(s => typeof s.reps === "number" && s.reps > 0);
-  const n = q.length;
-  const first = q[0], last = q[n-1];
-  const mixedLoad = n > 0 && q.some(s => s.weight !== q[0].weight);
-  const workingLoad = n > 0 && !mixedLoad ? q[0].weight : null;
+  const qual = w => ((weekSets && weekSets[w]) || []).filter(s => typeof s.reps === "number" && s.reps > 0);
+  const oneLoad = q => q.length && q.every(s => s.weight === q[0].weight) ? q[0].weight : null;
 
-  // §2 rounding: round down to step, never below one step
-  const roundDown = v => Math.max(step, Math.floor(v/step)*step);
+  const q = qual(currentWeek - 1);
+  const n = q.length, first = q[0], last = q[n-1];
+  const load = oneLoad(q);
+  const mixedLoad = n > 0 && load === null;
 
-  // §5.1 — week 4: no progression suggestion, ever
-  if(currentWeek === 4){
-    if(equipment === "bodyweight" || workingLoad == null)
-      return {outcome:"DELOAD", cls:null, load:null, text:`${WEEK_RIR_TEXT[4]} RIR, stop early`};
-    const dl = roundDown(workingLoad * 0.70);   // §7
-    return {outcome:"DELOAD", cls:null, load:dl, text:`${dl} — ${WEEK_RIR_TEXT[4]} RIR, stop early`};
-  }
-  // §5.2 — no prior data (§6 second row supplies the bodyweight text)
-  if(n === 0){
-    if(equipment === "bodyweight")
-      return {outcome:"BODYWEIGHT", cls:null, load:null, text:"2 shy of failure"};
-    if(startLoad != null)
-      return {outcome:"NO_DATA", cls:null, load:startLoad, text:`start ${startLoad}`};
-    return {outcome:"NO_DATA", cls:null, load:null, text:`find it — ${range.top} reps, ${rir} in reserve`};
-  }
-  // §5.3 — pain: unconditional override, never increases load
-  if(pain){
-    const l = workingLoad ?? last.weight;
-    return {outcome:"PAIN", cls:null, load:l, text:`hold ${l} — or swap the movement`};
-  }
-  // §5.4 — bodyweight progresses by reps only (§6)
-  if(equipment === "bodyweight")
-    return {outcome:"BODYWEIGHT", cls:null, load:null, text:`beat ${last.reps} on the last set`};
-  // §5.5 — mixed loads are unevaluable
-  if(mixedLoad)
-    return {outcome:"MIXED", cls:null, load:null, text:"pick one weight and hold it"};
-  // §5.6 — fewer qualifying sets than prescribed
-  if(n < prescribed)
-    return {outcome:"INCOMPLETE", cls:null, load:workingLoad, text:`repeat ${workingLoad} — finish all ${prescribed} sets`};
+  const ret = (outcome, text, l = null, cls = null) => ({class: cls, outcome, load: l, text});
 
-  // §3 — performance classification, first match wins
-  let cls;
-  if(first.reps < range.bottom)      cls = "P_FAIL";
-  else if(last.reps < range.bottom)  cls = "P_DROP";
-  else if(first.reps >= range.top)   cls = "P_PASS";
-  else                               cls = "P_HOLD";
+  // §7 / §7.1 — one cascade, two terminal operations.
+  const deloadBase = () => {
+    for(const w of [3, 2, 1]){
+      const l = oneLoad(qual(w));
+      if(l !== null) return l;
+    }
+    return startLoad ?? null;
+  };
 
-  // §4 — jump feasibility gate, only on P_PASS: can set 1 absorb the jump
-  // (~1 rep lost per 3% added load) and still clear the bottom of the range?
-  const jumpPct = step / workingLoad;
-  let requiredReps = null;
-  if(cls === "P_PASS"){
-    requiredReps = range.bottom + Math.ceil(jumpPct / 0.03);
-    if(requiredReps > range.top + 6) cls = "P_UNPROGRESSABLE";
-    else if(first.reps < requiredReps) cls = "P_GATED";
+  // ---- §5 dispatch: load sense first, before any data-shape rule ----
+
+  if(sense === "none"){                                      // §6.1
+    if(currentWeek === 4)  return ret("DELOAD_BW", "deload — stop 4–5 shy of failure");
+    if(pain)               return ret("PAIN_BW", "pain flagged — go easier or swap the movement");
+    if(n === 0)            return ret("NO_DATA_BW", "2 shy of failure");
+    if(n < prescribed)     return ret("INCOMPLETE_BW", `beat ${last.reps} — finish all ${prescribed} sets`);
+    return ret("BW_PROGRESS", `beat ${last.reps} on the last set`);
   }
 
-  // §2 double-step clause
-  let inc = step;
-  if(cls === "P_PASS" && jumpPct < 0.03 && first.reps >= range.top + 2) inc = 2*step;
+  if(sense === "assist"){                                    // §6.2
+    if(currentWeek === 4){
+      const base = deloadBase();
+      if(base === null)    return ret("DELOAD_ASSIST", "deload — more assistance, stop early");
+      const dl = base + step;                                // §7.1
+      return ret("DELOAD_ASSIST", `${dl} — ${rir} RIR, stop early`, dl);
+    }
+    if(pain)               return ret("PAIN_ASSIST", "pain flagged — more assistance or swap the movement");
+    if(n === 0)            return ret("NO_DATA", `find it — ${top} reps, ${rir} in reserve`);
+    if(mixedLoad)          return ret("MIXED", "pick one assist level and hold it");
+    if(n < prescribed)     return ret("INCOMPLETE", `repeat ${load} assist — finish all ${prescribed} sets`, load);
+  }
 
-  // §8 — decision matrix
-  const load = workingLoad;
-  if(cls === "P_PASS"){
-    if(effort === "brutal")
-      return {outcome:"HOLD_RIR", cls, load, text:`repeat ${load} — same reps, more in reserve`};
-    return {outcome:"ADD", cls, load: load+inc, text:`${load} ✓ → try ${load+inc}`};
+  if(sense === "weight"){                                    // §6.3
+    if(currentWeek === 4){
+      const base = deloadBase();
+      if(base === null)    return ret("DELOAD", `about two-thirds of your usual — ${rir} RIR, stop early`);
+      const dl = Math.max(step, Math.floor(base * 0.70 / step) * step);   // §7
+      return ret("DELOAD", `${dl} — ${rir} RIR, stop early`, dl);
+    }
+    if(n === 0){
+      if(startLoad != null) return ret("NO_DATA", `start ${startLoad}`, startLoad);
+      return ret("NO_DATA", `find it — ${top} reps, ${rir} in reserve`);
+    }
+    if(pain)               return ret("PAIN", "pain flagged — go lighter or swap the movement");
+    if(mixedLoad)          return ret("MIXED", "pick one weight and hold it");
+    if(n < prescribed)     return ret("INCOMPLETE", `repeat ${load} — finish all ${prescribed} sets`, load);
   }
-  if(cls === "P_UNPROGRESSABLE")
-    return {outcome:"HOLD", cls, load, text:`${step} is too big a jump here — hold ${load} and add reps`};
-  if(cls === "P_GATED"){
-    if(effort === "brutal")
-      return {outcome:"HOLD", cls, load, text:`repeat ${load} — chase ${range.top}+`};
-    return {outcome:"HOLD_GATE", cls, load, text:`repeat ${load} — need ${requiredReps}+ before ${load+step}`};
+
+  // ---- §3 classification: sense-agnostic, reads reps only ----
+  let cls = first.reps < bottom ? "P_FAIL"
+          : last.reps  < bottom ? "P_DROP"
+          : first.reps >= top   ? "P_PASS"
+          : "P_HOLD";
+
+  /* §4 — the two proportionality rules (this gate and §2's double-step
+     clause) both compute from jumpPct, undefined for "none" and meaningless
+     for "assist". One guard governs both, as the spec states it once. */
+  const proportional = sense === "weight";
+  let requiredReps = null, inc = step;
+  if(proportional){
+    const jumpPct = step / load;
+    if(cls === "P_PASS"){
+      requiredReps = bottom + Math.ceil(jumpPct / 0.03);
+      if(requiredReps > top + 6)         cls = "P_UNPROGRESSABLE";
+      else if(first.reps < requiredReps) cls = "P_GATED";
+    }
+    if(cls === "P_PASS" && jumpPct < 0.03 && first.reps >= top + 2) inc = 2 * step;   // §2
   }
-  if(cls === "P_HOLD"){
-    if(effort === "easy")
-      return {outcome:"HOLD_PUSH", cls, load, text:`repeat ${load} — take it closer to ${rir} RIR`};
-    return {outcome:"HOLD", cls, load, text:`repeat ${load} — chase ${range.top}+`};
+
+  // ---- §8 matrix: class × effort → outcome (P_FAIL ignores effort) ----
+  const outcome =
+      cls === "P_PASS"           ? (effort === "brutal" ? "HOLD_RIR" : "ADD")
+    : cls === "P_GATED"          ? (effort === "brutal" ? "HOLD" : "HOLD_GATE")
+    : cls === "P_UNPROGRESSABLE" ? "HOLD"
+    : cls === "P_HOLD"           ? (effort === "easy" ? "HOLD_PUSH" : "HOLD")
+    : cls === "P_DROP"           ? "HOLD"
+    : "REDUCE";
+
+  if(sense === "assist"){                                    // §6.2 matrix text
+    switch(outcome){
+      case "ADD":
+        if(load === 0)       return ret("ADD", "unassisted — switch to Pull-Up", null, cls);
+        if(load - inc <= 0)  return ret("ADD", `${load} ✓ → try it unassisted`, 0, cls);
+        return ret("ADD", `${load} ✓ → drop assist to ${load - inc}`, load - inc, cls);
+      case "REDUCE":    return ret("REDUCE", `add assist to ${load + step} — ${bottom}+ clean`, load + step, cls);
+      case "HOLD_RIR":  return ret("HOLD_RIR", `repeat ${load} assist — same reps, more in reserve`, load, cls);
+      case "HOLD_PUSH": return ret("HOLD_PUSH", `repeat ${load} assist — take it closer to ${rir} RIR`, load, cls);
+      default:          return ret("HOLD", `repeat ${load} assist — chase ${top}+`, load, cls);
+    }
   }
-  if(cls === "P_DROP")
-    return {outcome:"HOLD", cls, load, text:`repeat ${load} — chase ${range.top}+`};
-  // P_FAIL — feedback ignored entirely (§8)
-  const down = Math.max(step, load - step);
-  return {outcome:"REDUCE", cls, load: down, text:`drop to ${down} — ${range.bottom}+ clean`};
+  switch(outcome){                                           // §8 text, sense weight
+    case "ADD":       return ret("ADD", `${load} ✓ → try ${load + inc}`, load + inc, cls);
+    case "HOLD_RIR":  return ret("HOLD_RIR", `repeat ${load} — same reps, more in reserve`, load, cls);
+    case "HOLD_GATE": return ret("HOLD_GATE", `repeat ${load} — need ${requiredReps}+ before ${load + step}`, load, cls);
+    case "HOLD_PUSH": return ret("HOLD_PUSH", `repeat ${load} — take it closer to ${rir} RIR`, load, cls);
+    case "REDUCE": {
+      const down = Math.max(step, load - step);
+      return ret("REDUCE", `drop to ${down} — ${bottom}+ clean`, down, cls);
+    }
+    default: return cls === "P_UNPROGRESSABLE"
+      ? ret("HOLD", `${step} is too big a jump here — hold ${load} and add reps`, load, cls)
+      : ret("HOLD", `repeat ${load} — chase ${top}+`, load, cls);
+  }
 }
 
 function dayObj(){ return PROGRAM.days.find(d=>d.key===D); }
@@ -791,23 +825,24 @@ function stepFor(ex){
 // Suggestion for the current week from last week's data, same (day, exerciseId).
 // A swapped-in exercise has no sets under its id -> NO_DATA; never inherited.
 function suggestFor(ex){
-  const priorWeek = W - 1;
-  const priorSets = [];
-  let prescribed = 0;
-  if(W > 1){
-    prescribed = ex.sets[W-2];
-    for(let si = 0; si < prescribed; si++){
-      const c = LOG.sets[cell(priorWeek, D, ex.id, si)];
-      if(c) priorSets.push({weight: c.weight, reps: c.reps});
+  // Every week's logged sets for this exercise: the engine reads week W−1 for
+  // the suggestion and walks 3/2/1 for the §7 and §7.1 deload cascades.
+  const weekSets = {};
+  PROGRAM.weeks.forEach(w => {
+    const arr = [];
+    for(let si = 0; si < ex.sets[w.n-1]; si++){
+      const c = LOG.sets[cell(w.n, D, ex.id, si)];
+      if(c) arr.push({weight: c.weight, reps: c.reps});
     }
-  }
+    weekSets[w.n] = arr;
+  });
   return suggestLoad({
-    priorSets,
-    prescribed,
+    weekSets,
+    prescribed: W > 1 ? ex.sets[W-2] : 0,
     range: parseRange(ex.reps) || {bottom:0, top:0},
     step: stepFor(ex),
-    equipment: ex.unit === "bodyweight" ? "bodyweight" : "loaded",
-    feedback: LOG.feedback[`${priorWeek}|${D}|${ex.id}`] || null,
+    loadSense: ex.loadSense,
+    feedback: LOG.feedback[`${W-1}|${D}|${ex.id}`] || null,
     currentWeek: W,
     startLoad: ex.start,
     rir: weekObj().rir
@@ -876,7 +911,7 @@ function renderDay(){
       </div>
       <div class="prescribe">${n} × ${ex.reps}${ex.unit?` · ${ex.unit}`:""} · ${weekObj().rir} RIR</div>
       ${ex.cue?`<div class="cue">${ex.cue}</div>`:""}
-      <div class="suggest ${sug.outcome==="DELOAD"||sug.outcome==="PAIN"?"warn":""}">${sug.text}</div>
+      <div class="suggest ${/^(DELOAD|PAIN)/.test(sug.outcome)?"warn":""}">${sug.text}</div>
       <div class="hdr"><div></div><div>Weight</div><div>Reps</div><div></div></div>
       ${rows}
       <div class="fbrow">
