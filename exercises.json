@@ -36,10 +36,10 @@
     { "id": "flat_db_press", "name": "Flat Dumbbell Press", "slot": "chest_flat_press", "muscle": "Chest",
       "equipment": ["dumbbell", "bench"], "unit": "per DB", "spinalLoad": "low" },
     { "id": "dip_chest", "name": "Dip (Chest Lean)", "slot": "chest_flat_press", "muscle": "Chest",
-      "equipment": ["dip station"], "unit": "bodyweight", "spinalLoad": "low",
+      "equipment": ["dip station"], "unit": "bodyweight", "spinalLoad": "low", "loadSense": "none",
       "cue": "Lean the torso forward to bias chest. Stop before the shoulder rolls forward at the bottom." },
     { "id": "pushup", "name": "Push-Up", "slot": "chest_flat_press", "muscle": "Chest",
-      "equipment": ["none"], "unit": "bodyweight", "spinalLoad": "low",
+      "equipment": ["none"], "unit": "bodyweight", "spinalLoad": "low", "loadSense": "none",
       "cue": "Log reps only. Leave the weight field empty." },
 
     { "id": "machine_flye", "name": "Machine Flye", "slot": "chest_flye", "muscle": "Chest",
@@ -59,9 +59,10 @@
       "equipment": ["cable"], "unit": "", "spinalLoad": "low",
       "cue": "Easier on the shoulder than a wide pronated grip." },
     { "id": "pullup", "name": "Pull-Up", "slot": "back_vertical_pull", "muscle": "Back",
-      "equipment": ["pull-up bar"], "unit": "bodyweight", "spinalLoad": "low" },
+      "equipment": ["pull-up bar"], "unit": "bodyweight", "spinalLoad": "low", "loadSense": "none" },
     { "id": "pullup_assisted", "name": "Assisted Pull-Up", "slot": "back_vertical_pull", "muscle": "Back",
       "equipment": ["assisted pull-up machine"], "unit": "assist load", "spinalLoad": "low",
+      "loadSense": "assist", "step": 10,
       "cue": "Log the assist weight. Lower assist number means harder set — worth a note so future you isn't confused." },
 
     { "id": "row_chest_supported", "name": "Chest-Supported Row", "slot": "back_horizontal_row", "muscle": "Back",
@@ -132,7 +133,7 @@
     { "id": "skull_crusher", "name": "EZ Bar Skull Crusher", "slot": "triceps_extension", "muscle": "Triceps",
       "equipment": ["barbell", "bench"], "unit": "", "spinalLoad": "low" },
     { "id": "dip_triceps", "name": "Dip (Upright)", "slot": "triceps_extension", "muscle": "Triceps",
-      "equipment": ["dip station"], "unit": "bodyweight", "spinalLoad": "low" },
+      "equipment": ["dip station"], "unit": "bodyweight", "spinalLoad": "low", "loadSense": "none" },
 
     { "id": "bb_squat_high", "name": "Barbell Squat (High Bar)", "slot": "quad_squat", "muscle": "Quads",
       "equipment": ["barbell", "rack"], "unit": "", "spinalLoad": "high",
@@ -164,7 +165,7 @@
       "equipment": ["cable"], "unit": "", "spinalLoad": "low",
       "cue": "Resistance is horizontal instead of vertical, so almost no spinal compression. The low-back-friendly hinge." },
     { "id": "back_extension_45", "name": "45° Back Extension", "slot": "ham_hinge", "muscle": "Hamstrings",
-      "equipment": ["back extension bench"], "unit": "bodyweight", "spinalLoad": "low" },
+      "equipment": ["back extension bench"], "unit": "bodyweight", "spinalLoad": "low", "loadSense": "none" },
 
     { "id": "leg_curl_seated", "name": "Seated Leg Curl", "slot": "ham_curl", "muscle": "Hamstrings",
       "equipment": ["machine"], "unit": "", "spinalLoad": "low",
