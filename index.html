@@ -200,6 +200,177 @@ try{
   if(t==="dark"||t==="light") document.documentElement.dataset.theme = t;
 }catch(e){}
 
+/* ---- exercise library ----
+   INLINED COPY of exercises.json — the JSON file in the repo is the source of
+   truth. Edit exercises.json first, then mirror the change here. Inlined
+   because fetch() of a local JSON file is blocked under file:// and this page
+   must work opened directly from disk. */
+const LIBRARY = {
+  version: 1,
+  slots: {
+    chest_incline_press: { label:"Incline press", defaultReps:"8–12" },
+    chest_flat_press:    { label:"Flat press",    defaultReps:"8–12" },
+    chest_flye:          { label:"Chest isolation", defaultReps:"10–15" },
+    back_vertical_pull:  { label:"Vertical pull",  defaultReps:"10–15" },
+    back_horizontal_row: { label:"Horizontal row", defaultReps:"10–15" },
+    back_pullover:       { label:"Pullover",       defaultReps:"12–20" },
+    shoulder_press:      { label:"Overhead press", defaultReps:"8–12" },
+    shoulder_lateral:    { label:"Lateral delt",   defaultReps:"12–20" },
+    shoulder_posterior:  { label:"Posterior delt", defaultReps:"12–20" },
+    biceps_curl:         { label:"Curl",           defaultReps:"10–15" },
+    triceps_extension:   { label:"Triceps",        defaultReps:"10–15" },
+    quad_squat:          { label:"Squat pattern",  defaultReps:"8–12" },
+    quad_isolation:      { label:"Quad isolation", defaultReps:"15–20" },
+    ham_hinge:           { label:"Hip hinge",      defaultReps:"10–12" },
+    ham_curl:            { label:"Knee flexion",   defaultReps:"12–15" }
+  },
+  exercises: [
+    { id:"inc_db_press", name:"Incline Dumbbell Press", slot:"chest_incline_press", muscle:"Chest",
+      equipment:["dumbbell","incline bench"], unit:"per DB", spinalLoad:"low",
+      cue:"Bench at about 30°. Higher angles hand the work to the front delt." },
+    { id:"inc_bb_press", name:"Incline Barbell Press", slot:"chest_incline_press", muscle:"Chest",
+      equipment:["barbell","incline bench"], unit:"", spinalLoad:"low",
+      cue:"Heavier loadable than dumbbells but a fixed groove. Needs a spotter near failure." },
+    { id:"inc_cable_press", name:"Low-to-High Cable Press", slot:"chest_incline_press", muscle:"Chest",
+      equipment:["cable"], unit:"", spinalLoad:"low",
+      cue:"Constant tension through the top. Good when both incline benches are taken." },
+    { id:"flat_bb_bench", name:"Flat Barbell Bench Press", slot:"chest_flat_press", muscle:"Chest",
+      equipment:["barbell","bench"], unit:"", spinalLoad:"low" },
+    { id:"flat_db_press", name:"Flat Dumbbell Press", slot:"chest_flat_press", muscle:"Chest",
+      equipment:["dumbbell","bench"], unit:"per DB", spinalLoad:"low" },
+    { id:"dip_chest", name:"Dip (Chest Lean)", slot:"chest_flat_press", muscle:"Chest",
+      equipment:["dip station"], unit:"bodyweight", spinalLoad:"low",
+      cue:"Lean the torso forward to bias chest. Stop before the shoulder rolls forward at the bottom." },
+    { id:"pushup", name:"Push-Up", slot:"chest_flat_press", muscle:"Chest",
+      equipment:["none"], unit:"bodyweight", spinalLoad:"low",
+      cue:"Log reps only. Leave the weight field empty." },
+    { id:"machine_flye", name:"Machine Flye", slot:"chest_flye", muscle:"Chest",
+      equipment:["machine"], unit:"", spinalLoad:"low" },
+    { id:"cable_flye_mid", name:"Cable Flye", slot:"chest_flye", muscle:"Chest",
+      equipment:["cable"], unit:"", spinalLoad:"low" },
+    { id:"cable_flye_low", name:"Low-to-High Cable Flye", slot:"chest_flye", muscle:"Chest",
+      equipment:["cable"], unit:"", spinalLoad:"low",
+      cue:"The upper-chest biased flye. Pairs well with a flat press day." },
+    { id:"inc_db_flye", name:"Incline Dumbbell Flye", slot:"chest_flye", muscle:"Chest",
+      equipment:["dumbbell","incline bench"], unit:"per DB", spinalLoad:"low",
+      cue:"Go lighter than feels right. Tension drops off at the top, so don't chase load here." },
+    { id:"lat_pulldown", name:"Lat Pulldown", slot:"back_vertical_pull", muscle:"Back",
+      equipment:["cable"], unit:"", spinalLoad:"low" },
+    { id:"pulldown_neutral", name:"Neutral-Grip Pulldown", slot:"back_vertical_pull", muscle:"Back",
+      equipment:["cable"], unit:"", spinalLoad:"low",
+      cue:"Easier on the shoulder than a wide pronated grip." },
+    { id:"pullup", name:"Pull-Up", slot:"back_vertical_pull", muscle:"Back",
+      equipment:["pull-up bar"], unit:"bodyweight", spinalLoad:"low" },
+    { id:"pullup_assisted", name:"Assisted Pull-Up", slot:"back_vertical_pull", muscle:"Back",
+      equipment:["assisted pull-up machine"], unit:"assist load", spinalLoad:"low",
+      cue:"Log the assist weight. Lower assist number means harder set — worth a note so future you isn't confused." },
+    { id:"row_chest_supported", name:"Chest-Supported Row", slot:"back_horizontal_row", muscle:"Back",
+      equipment:["dumbbell","incline bench"], unit:"per DB", spinalLoad:"low",
+      cue:"Chest pad takes the low back out of it entirely. The default row on a day you've squatted." },
+    { id:"row_db_single", name:"Single-Arm Dumbbell Row", slot:"back_horizontal_row", muscle:"Back",
+      equipment:["dumbbell","bench"], unit:"per DB", spinalLoad:"low" },
+    { id:"row_cable_seated", name:"Seated Cable Row", slot:"back_horizontal_row", muscle:"Back",
+      equipment:["cable"], unit:"", spinalLoad:"low",
+      cue:"Keep the torso still. Rowing with the low back turns this into a hinge." },
+    { id:"row_barbell", name:"Barbell Row", slot:"back_horizontal_row", muscle:"Back",
+      equipment:["barbell"], unit:"", spinalLoad:"high",
+      cue:"Unsupported hinge held for the whole set. Given the low back history, treat this as a swap-to option only on fresh days." },
+    { id:"db_pullover", name:"Dumbbell Pullover", slot:"back_pullover", muscle:"Back",
+      equipment:["dumbbell","bench"], unit:"", spinalLoad:"low" },
+    { id:"straight_arm_pulldown", name:"Straight-Arm Cable Pulldown", slot:"back_pullover", muscle:"Back",
+      equipment:["cable"], unit:"", spinalLoad:"low" },
+    { id:"db_shoulder_press", name:"Dumbbell Shoulder Press (Seated)", slot:"shoulder_press", muscle:"Shoulders",
+      equipment:["dumbbell","incline bench"], unit:"per DB", spinalLoad:"low" },
+    { id:"bb_ohp_seated", name:"Seated Barbell Overhead Press", slot:"shoulder_press", muscle:"Shoulders",
+      equipment:["barbell","incline bench"], unit:"", spinalLoad:"medium" },
+    { id:"machine_shoulder_press", name:"Machine Shoulder Press", slot:"shoulder_press", muscle:"Shoulders",
+      equipment:["machine"], unit:"", spinalLoad:"low" },
+    { id:"db_lateral_raise", name:"Dumbbell Lateral Raise", slot:"shoulder_lateral", muscle:"Shoulders",
+      equipment:["dumbbell"], unit:"per DB", spinalLoad:"low",
+      cue:"Lead with the elbow, stop at shoulder height." },
+    { id:"cable_lateral_raise", name:"Cable Lateral Raise", slot:"shoulder_lateral", muscle:"Shoulders",
+      equipment:["cable"], unit:"", spinalLoad:"low",
+      cue:"Tension at the bottom where dumbbells have none. One arm at a time." },
+    { id:"db_upright_row", name:"Dumbbell Upright Row", slot:"shoulder_lateral", muscle:"Shoulders",
+      equipment:["dumbbell"], unit:"per DB", spinalLoad:"low",
+      cue:"Forearms have been the limiter here before. If they quit first again, swap to a lateral raise." },
+    { id:"cable_facepull", name:"Cable Rope Facepull", slot:"shoulder_posterior", muscle:"Rear delt",
+      equipment:["cable"], unit:"", spinalLoad:"low",
+      cue:"Rope at forehead height. Pull to the face and rotate — this is posterior delt work, not a row." },
+    { id:"cable_rear_delt_flye", name:"Cable Rear Delt Flye", slot:"shoulder_posterior", muscle:"Rear delt",
+      equipment:["cable"], unit:"", spinalLoad:"low" },
+    { id:"db_rear_delt_flye", name:"Bent-Over Dumbbell Rear Delt Flye", slot:"shoulder_posterior", muscle:"Rear delt",
+      equipment:["dumbbell"], unit:"per DB", spinalLoad:"medium",
+      cue:"Chest-supported on an incline bench removes the low back entirely — do that version by default." },
+    { id:"ez_preacher_curl", name:"EZ Bar Preacher Curl", slot:"biceps_curl", muscle:"Biceps",
+      equipment:["barbell","preacher bench"], unit:"", spinalLoad:"low" },
+    { id:"ez_curl_wide", name:"EZ Bar Curl (Wide Grip)", slot:"biceps_curl", muscle:"Biceps",
+      equipment:["barbell"], unit:"", spinalLoad:"low" },
+    { id:"ez_curl_narrow", name:"EZ Bar Curl (Narrow Grip)", slot:"biceps_curl", muscle:"Biceps",
+      equipment:["barbell"], unit:"", spinalLoad:"low" },
+    { id:"db_curl_incline", name:"Dumbbell Curl (Incline)", slot:"biceps_curl", muscle:"Biceps",
+      equipment:["dumbbell","incline bench"], unit:"per DB", spinalLoad:"low",
+      cue:"Stretched position for the long head. Keep the upper arm behind the torso." },
+    { id:"cable_curl", name:"Cable Curl", slot:"biceps_curl", muscle:"Biceps",
+      equipment:["cable"], unit:"", spinalLoad:"low" },
+    { id:"hammer_curl", name:"Hammer Curl", slot:"biceps_curl", muscle:"Biceps",
+      equipment:["dumbbell"], unit:"per DB", spinalLoad:"low",
+      cue:"Brachialis and forearm. Useful given the grip limitation on upright rows." },
+    { id:"cable_pushdown_bar", name:"Cable Triceps Pushdown (Bar)", slot:"triceps_extension", muscle:"Triceps",
+      equipment:["cable"], unit:"", spinalLoad:"low" },
+    { id:"cable_pushdown_rope", name:"Rope Pushdown", slot:"triceps_extension", muscle:"Triceps",
+      equipment:["cable"], unit:"", spinalLoad:"low" },
+    { id:"cable_overhead_ext", name:"Overhead Cable Extension", slot:"triceps_extension", muscle:"Triceps",
+      equipment:["cable"], unit:"", spinalLoad:"low",
+      cue:"The stretched position pushdowns don't cover. Worth one slot a week." },
+    { id:"skull_crusher", name:"EZ Bar Skull Crusher", slot:"triceps_extension", muscle:"Triceps",
+      equipment:["barbell","bench"], unit:"", spinalLoad:"low" },
+    { id:"dip_triceps", name:"Dip (Upright)", slot:"triceps_extension", muscle:"Triceps",
+      equipment:["dip station"], unit:"bodyweight", spinalLoad:"low" },
+    { id:"bb_squat_high", name:"Barbell Squat (High Bar)", slot:"quad_squat", muscle:"Quads",
+      equipment:["barbell","rack"], unit:"", spinalLoad:"high",
+      cue:"Three working sets at one weight. Warm up to it — don't log the ramp." },
+    { id:"leg_press", name:"Leg Press", slot:"quad_squat", muscle:"Quads",
+      equipment:["leg press"], unit:"", spinalLoad:"low",
+      cue:"The swap when the rack is busy, and the swap when the low back is grumbling." },
+    { id:"hack_squat", name:"Hack Squat", slot:"quad_squat", muscle:"Quads",
+      equipment:["hack squat"], unit:"", spinalLoad:"medium" },
+    { id:"bulgarian_split_squat", name:"Bulgarian Split Squat", slot:"quad_squat", muscle:"Quads",
+      equipment:["dumbbell","bench"], unit:"per DB", spinalLoad:"low",
+      cue:"Heavy on the connective tissue at the knee. Introduce it with low volume if it's new." },
+    { id:"leg_extension", name:"Leg Extension", slot:"quad_isolation", muscle:"Quads",
+      equipment:["machine"], unit:"", spinalLoad:"low" },
+    { id:"walking_lunge", name:"Walking Lunge", slot:"quad_isolation", muscle:"Quads",
+      equipment:["dumbbell"], unit:"per DB", spinalLoad:"low",
+      cue:"Competes with running for recovery more than a leg extension does. Watch the interaction." },
+    { id:"bb_good_morning", name:"Barbell Good Morning (High Bar)", slot:"ham_hinge", muscle:"Hamstrings",
+      equipment:["barbell","rack"], unit:"", spinalLoad:"high",
+      cue:"Longest lever of the hinge options and the most low-back demanding. Keep the load conservative." },
+    { id:"rdl_barbell", name:"Romanian Deadlift", slot:"ham_hinge", muscle:"Hamstrings",
+      equipment:["barbell"], unit:"", spinalLoad:"high",
+      cue:"Load sits closer to the body than a good morning, so the same hamstring stimulus at less spinal cost." },
+    { id:"rdl_dumbbell", name:"Dumbbell Romanian Deadlift", slot:"ham_hinge", muscle:"Hamstrings",
+      equipment:["dumbbell"], unit:"per DB", spinalLoad:"medium" },
+    { id:"cable_pull_through", name:"Cable Pull-Through", slot:"ham_hinge", muscle:"Hamstrings",
+      equipment:["cable"], unit:"", spinalLoad:"low",
+      cue:"Resistance is horizontal instead of vertical, so almost no spinal compression. The low-back-friendly hinge." },
+    { id:"back_extension_45", name:"45° Back Extension", slot:"ham_hinge", muscle:"Hamstrings",
+      equipment:["back extension bench"], unit:"bodyweight", spinalLoad:"low" },
+    { id:"leg_curl_seated", name:"Seated Leg Curl", slot:"ham_curl", muscle:"Hamstrings",
+      equipment:["machine"], unit:"", spinalLoad:"low",
+      cue:"Hip flexed, so the hamstring works from a stretched position. Slightly better than lying for growth." },
+    { id:"leg_curl_lying", name:"Lying Leg Curl", slot:"ham_curl", muscle:"Hamstrings",
+      equipment:["machine"], unit:"", spinalLoad:"low" }
+  ]
+};
+const LIB_EX = new Map(LIBRARY.exercises.map(e=>[e.id,e]));
+
+/* ---- program ----
+   Set counts per week, starting loads, and rep/cue overrides are the training
+   plan and live here. Everything else about an exercise (name, muscle, unit,
+   equipment, slot, spinal load) resolves from LIBRARY by id. Rep precedence:
+   PROGRAM reps override > library exercise reps > slot defaultReps. A PROGRAM
+   cue overrides the library cue. */
 const PROGRAM = {
   weeks: [
     {n:1, rir:"3", note:null},
@@ -209,68 +380,130 @@ const PROGRAM = {
   ],
   days: [
     {key:"mon", label:"Mon", focus:"Push · partner gym", ex:[
-      {name:"Incline Dumbbell Press", muscle:"Chest", sets:[3,3,4,2], reps:"8–12", start:25, unit:"per DB",
+      {id:"inc_db_press", sets:[3,3,4,2], start:25,
        cue:"The upper-chest lift. Bench at about 30°, not 45° — higher angles hand the work to the front delt."},
-      {name:"Dumbbell Shoulder Press (Seated)", muscle:"Shoulders", sets:[3,3,3,2], reps:"8–12", start:25, unit:"per DB",
+      {id:"db_shoulder_press", sets:[3,3,3,2], start:25,
        cue:"You were at 25s for 12, then dropping to 20s. Hold 25 for all sets this time and let reps climb."},
-      {name:"Machine Flye", muscle:"Chest", sets:[2,3,3,1], reps:"10–15", start:70, unit:""},
-      {name:"Cable Triceps Pushdown (Bar)", muscle:"Triceps", sets:[3,3,3,2], reps:"10–15", start:60, unit:""},
-      {name:"Dumbbell Lateral Raise", muscle:"Shoulders", sets:[3,3,4,2], reps:"12–20", start:10, unit:"per DB",
+      {id:"machine_flye", sets:[2,3,3,1], start:70},
+      {id:"cable_pushdown_bar", sets:[3,3,3,2], start:60},
+      {id:"db_lateral_raise", sets:[3,3,4,2], start:10,
        cue:"Replaces two of the three weekly upright row slots. Lead with the elbow, stop at shoulder height."},
-      {name:"Cable Rope Facepull", muscle:"Rear delt", sets:[3,3,4,2], reps:"12–20", start:50, unit:"",
+      {id:"cable_facepull", sets:[3,3,4,2], start:50,
        cue:"Rope at forehead height. Pull to the face and rotate — this is the posterior delt work, not a row."}
     ]},
     {key:"wed", label:"Wed", focus:"Pull · quads", ex:[
-      {name:"Barbell Squat (High Bar)", muscle:"Quads", sets:[3,3,3,2], reps:"8–12", start:85, unit:"",
+      {id:"bb_squat_high", sets:[3,3,3,2], start:85,
        cue:"Three true working sets at one weight. Warm up to it — don't log the ramp."},
-      {name:"Lat Pulldown", muscle:"Back", sets:[3,3,4,2], reps:"10–15", start:null, unit:"",
+      {id:"lat_pulldown", sets:[3,3,4,2], start:null,
        cue:"New. Week 1 is for finding a weight you can hold for 12 clean reps with 3 in reserve."},
-      {name:"Chest-Supported Row", muscle:"Back", sets:[3,3,3,2], reps:"10–15", start:null, unit:"",
+      {id:"row_chest_supported", sets:[3,3,3,2], start:null,
        cue:"New. Chest pad takes the low back out of it on a day you've already squatted."},
-      {name:"EZ Bar Preacher Curl", muscle:"Biceps", sets:[3,3,3,2], reps:"10–15", start:45, unit:"",
+      {id:"ez_preacher_curl", sets:[3,3,3,2], start:45,
        cue:"You hit 17 reps at 40 — that's below a working weight. Start at 45."},
-      {name:"Dumbbell Curl (Incline)", muscle:"Biceps", sets:[3,3,3,2], reps:"10–15", start:15, unit:"per DB"},
-      {name:"Leg Extension", muscle:"Quads", sets:[2,2,3,1], reps:"15–20", start:45, unit:""},
-      {name:"Push-Up", muscle:"Chest", sets:[2,2,2,1], reps:"2 shy of failure", start:0, unit:"bodyweight",
-       cue:"Log reps only. Leave the weight field empty."}
+      {id:"db_curl_incline", sets:[3,3,3,2], start:15},
+      {id:"leg_extension", sets:[2,2,3,1], start:45},
+      {id:"pushup", sets:[2,2,2,1], start:0, reps:"2 shy of failure"}
     ]},
     {key:"fri", label:"Fri", focus:"Shoulders · hamstrings", ex:[
-      {name:"Dumbbell Upright Row", muscle:"Shoulders", sets:[3,3,3,2], reps:"10–15", start:20, unit:"per DB",
+      {id:"db_upright_row", sets:[3,3,3,2], start:20, reps:"10–15",
        cue:"Your one upright row slot for the week. If the forearms still quit first, swap in a lateral raise."},
-      {name:"Cable Rear Delt Flye", muscle:"Rear delt", sets:[3,3,4,2], reps:"12–20", start:null, unit:"",
+      {id:"cable_rear_delt_flye", sets:[3,3,4,2], start:null,
        cue:"New. Light and high-rep — the second posterior delt exposure of the week."},
-      {name:"Single-Arm Dumbbell Row", muscle:"Back", sets:[3,3,3,2], reps:"10–15", start:null, unit:"per DB",
+      {id:"row_db_single", sets:[3,3,3,2], start:null,
        cue:"New. Gives back a second session instead of one big Wednesday."},
-      {name:"Machine Flye", muscle:"Chest", sets:[3,3,3,2], reps:"10–15", start:70, unit:""},
-      {name:"Barbell Good Morning (High Bar)", muscle:"Hamstrings", sets:[3,3,3,2], reps:"10–12", start:65, unit:""},
-      {name:"Seated Leg Curl", muscle:"Hamstrings", sets:[2,2,3,1], reps:"12–15", start:null, unit:""},
-      {name:"EZ Bar Curl (Wide Grip)", muscle:"Biceps", sets:[3,3,3,2], reps:"10–15", start:40, unit:""},
-      {name:"Push-Up", muscle:"Chest", sets:[2,2,2,1], reps:"2 shy of failure", start:0, unit:"bodyweight",
-       cue:"Log reps only. Leave the weight field empty."}
+      {id:"machine_flye", sets:[3,3,3,2], start:70},
+      {id:"bb_good_morning", sets:[3,3,3,2], start:65},
+      {id:"leg_curl_seated", sets:[2,2,3,1], start:null},
+      {id:"ez_curl_wide", sets:[3,3,3,2], start:40},
+      {id:"pushup", sets:[2,2,2,1], start:0, reps:"2 shy of failure"}
     ]}
   ]
 };
+
+// A PROGRAM entry resolved against the library into everything the UI needs.
+function resolveEx(p){
+  const lib = LIB_EX.get(p.id);
+  return {
+    id: p.id, sets: p.sets, start: p.start,
+    name: lib.name, muscle: lib.muscle, unit: lib.unit,
+    slot: lib.slot, equipment: lib.equipment, spinalLoad: lib.spinalLoad,
+    reps: p.reps ?? lib.reps ?? LIBRARY.slots[lib.slot].defaultReps,
+    cue: p.cue ?? lib.cue ?? null
+  };
+}
 
 /* ---- storage ----
    Everything lives under one localStorage key as a versioned envelope:
    { schemaVersion, updatedAt, settings, mesos: { <mesoId>: { sets, notes, order } } }
    settings: { theme: "auto" | "light" | "dark" }
-   sets:  "week|day|exercise name|setIdx" -> {weight, reps, done}  (weight/reps: number or null)
-   notes: "week|day|exercise name" -> string
-   order: dayKey -> [exercise names], drag-to-reorder override of PROGRAM order
-   Keyed by exercise name, not list position, so reordering or swapping
-   exercises in PROGRAM never mislabels old logs.
+   sets:  "week|day|exercise id|setIdx" -> {weight, reps, done}  (weight/reps: number or null)
+   notes: "week|day|exercise id" -> string
+   order: dayKey -> [exercise ids], drag-to-reorder override of PROGRAM order
+   Keyed by stable library exercise id (since v4; names before that), so
+   renames, reorders and swaps never mislabel old logs.
    Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
 const STORE_KEY = "meso-tracker";
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const MESO_ID = "meso01";
+
+/* v3 -> v4: exact display-name -> library-id table for every exercise that has
+   ever appeared in PROGRAM. No fuzzy matching — a key segment either matches a
+   row here verbatim or the key is left untouched (with a console warning). */
+const NAME_TO_ID = {
+  "Incline Dumbbell Press":            "inc_db_press",
+  "Dumbbell Shoulder Press (Seated)":  "db_shoulder_press",
+  "Machine Flye":                      "machine_flye",
+  "Cable Triceps Pushdown (Bar)":      "cable_pushdown_bar",
+  "Dumbbell Lateral Raise":            "db_lateral_raise",
+  "Cable Rope Facepull":               "cable_facepull",
+  "Barbell Squat (High Bar)":          "bb_squat_high",
+  "Lat Pulldown":                      "lat_pulldown",
+  "Chest-Supported Row":               "row_chest_supported",
+  "EZ Bar Preacher Curl":              "ez_preacher_curl",
+  "Dumbbell Curl (Incline)":           "db_curl_incline",
+  "Leg Extension":                     "leg_extension",
+  "Push-Up":                           "pushup",
+  "Dumbbell Upright Row":              "db_upright_row",
+  "Cable Rear Delt Flye":              "cable_rear_delt_flye",
+  "Single-Arm Dumbbell Row":           "row_db_single",
+  "Barbell Good Morning (High Bar)":   "bb_good_morning",
+  "Seated Leg Curl":                   "leg_curl_seated",
+  "EZ Bar Curl (Wide Grip)":           "ez_curl_wide"
+};
 
 // MIGRATIONS[n] upgrades a store from schemaVersion n to n+1.
 const MIGRATIONS = {
   // v2 added per-day exercise order overrides
   1: s => { Object.values(s.mesos).forEach(m => { m.order = m.order || {}; }); return s; },
   // v3 added app settings (theme)
-  2: s => { s.settings = s.settings || {theme:"auto"}; return s; }
+  2: s => { s.settings = s.settings || {theme:"auto"}; return s; },
+  // v4 rekeyed sets/notes/order from display names to library ids
+  3: s => {
+    backupRaw(JSON.stringify(s));
+    const warn = k => { if(!LIB_EX.has(k)) console.warn(`meso-tracker v3→v4: no id mapping for "${k}" — left as-is`); };
+    const rekey = (obj, nameAt) => {
+      const out = {};
+      Object.entries(obj || {}).forEach(([k,v])=>{
+        const p = k.split("|");
+        if(p.length > nameAt && NAME_TO_ID[p[nameAt]]){
+          p[nameAt] = NAME_TO_ID[p[nameAt]];
+          out[p.join("|")] = v;
+        }else{
+          if(p.length > nameAt) warn(p[nameAt]);
+          out[k] = v;
+        }
+      });
+      return out;
+    };
+    Object.values(s.mesos).forEach(m=>{
+      m.sets  = rekey(m.sets, 2);
+      m.notes = rekey(m.notes, 2);
+      Object.keys(m.order || {}).forEach(d=>{
+        m.order[d] = m.order[d].map(n => { if(NAME_TO_ID[n]) return NAME_TO_ID[n]; warn(n); return n; });
+      });
+    });
+    return s;
+  }
 };
 
 function freshStore(){ return {schemaVersion:SCHEMA_VERSION, updatedAt:null, settings:{theme:"auto"}, mesos:{}}; }
@@ -311,7 +544,7 @@ let LOG = {sets:{}, notes:{}};
 let W = 1, D = "mon";
 
 const $ = id => document.getElementById(id);
-const cell = (w,d,exName,s) => `${w}|${d}|${exName}|${s}`;
+const cell = (w,d,exId,s) => `${w}|${d}|${exId}|${s}`;
 
 let saveTimer=null;
 function save(){
@@ -340,16 +573,18 @@ async function load(){
 function dayObj(){ return PROGRAM.days.find(d=>d.key===D); }
 function weekObj(){ return PROGRAM.weeks[W-1]; }
 
-// Today's exercises in display order: the saved drag order if there is one,
-// with any exercise not in it (added to PROGRAM later) appended in PROGRAM order.
+// Today's exercises, resolved against the library, in display order: the
+// saved drag order if there is one, with any exercise not in it (added to
+// PROGRAM later) appended in PROGRAM order.
 function exList(){
   const d = dayObj();
+  const list = d.ex.map(resolveEx);
   const ord = LOG.order[d.key];
-  if(!ord || !ord.length) return d.ex;
-  const byName = new Map(d.ex.map(e=>[e.name,e]));
+  if(!ord || !ord.length) return list;
+  const byId = new Map(list.map(e=>[e.id,e]));
   const out = [];
-  ord.forEach(n=>{ if(byName.has(n)){ out.push(byName.get(n)); byName.delete(n); } });
-  byName.forEach(e=>out.push(e));
+  ord.forEach(id=>{ if(byId.has(id)){ out.push(byId.get(id)); byId.delete(id); } });
+  byId.forEach(e=>out.push(e));
   return out;
 }
 
@@ -370,8 +605,8 @@ function renderDay(){
   $("days").innerHTML = exList().map((ex,ei)=>{
     const n = ex.sets[W-1];
     const rows = Array.from({length:n},(_,si)=>{
-      const c = LOG.sets[cell(W,D,ex.name,si)] || {};
-      const prev = W>1 ? (LOG.sets[cell(W-1,D,ex.name,si)] || null) : null;
+      const c = LOG.sets[cell(W,D,ex.id,si)] || {};
+      const prev = W>1 ? (LOG.sets[cell(W-1,D,ex.id,si)] || null) : null;
       let ghost = "";
       if(prev && (prev.weight||prev.reps)) ghost = `last ${prev.weight||"–"}×${prev.reps||"–"}`;
       else if(W===1 && ex.start) ghost = `start ${ex.start}`;
@@ -392,9 +627,9 @@ function renderDay(){
         </button>
       </div>`;
     }).join("");
-    const allDone = Array.from({length:n},(_,si)=>LOG.sets[cell(W,D,ex.name,si)]?.done).every(Boolean);
-    const noteVal = LOG.notes[`${W}|${D}|${ex.name}`] || "";
-    return `<div class="card ${allDone?'done':''}" data-ex="${ex.name}">
+    const allDone = Array.from({length:n},(_,si)=>LOG.sets[cell(W,D,ex.id,si)]?.done).every(Boolean);
+    const noteVal = LOG.notes[`${W}|${D}|${ex.id}`] || "";
+    return `<div class="card ${allDone?'done':''}" data-ex="${ex.id}">
       <div class="exhead">
         <div>
           <div class="tag">${ex.muscle}</div>
@@ -418,7 +653,8 @@ function renderDay(){
 function renderVolume(){
   const tally = {};
   PROGRAM.days.forEach(d=>d.ex.forEach(ex=>{
-    tally[ex.muscle] = (tally[ex.muscle]||0) + ex.sets[W-1];
+    const m = LIB_EX.get(ex.id).muscle;
+    tally[m] = (tally[m]||0) + ex.sets[W-1];
   }));
   const entries = Object.entries(tally).sort((a,b)=>b[1]-a[1]);
   const max = Math.max(...entries.map(e=>e[1]));
@@ -517,7 +753,7 @@ let drag = null;
 
 function commitOrder(){
   const now = [...$("days").querySelectorAll(".card")].map(c=>c.dataset.ex);
-  if(now.join("|") !== exList().map(x=>x.name).join("|")){
+  if(now.join("|") !== exList().map(x=>x.id).join("|")){
     LOG.order[D] = now;
     save();
   }
@@ -616,7 +852,7 @@ document.addEventListener("click", e=>{
   if(db){ D = db.dataset.d; render(); window.scrollTo(0,0); return; }
   const chk = e.target.closest(".chk");
   if(chk){
-    const k = cell(W,D,exList()[chk.dataset.e].name,chk.dataset.s);
+    const k = cell(W,D,exList()[chk.dataset.e].id,chk.dataset.s);
     LOG.sets[k] = LOG.sets[k] || {};
     LOG.sets[k].done = !LOG.sets[k].done;
     save(); renderDay();
@@ -640,13 +876,13 @@ document.addEventListener("click", e=>{
 document.addEventListener("input", e=>{
   const inp = e.target;
   if(inp.dataset.f){
-    const k = cell(W,D,exList()[inp.dataset.e].name,inp.dataset.s);
+    const k = cell(W,D,exList()[inp.dataset.e].id,inp.dataset.s);
     LOG.sets[k] = LOG.sets[k] || {};
     LOG.sets[k][inp.dataset.f==="w"?"weight":"reps"] = inp.value==="" ? null : Number(inp.value);
     save();
   }
   if(inp.dataset.note!==undefined){
-    const k = `${W}|${D}|${exList()[inp.dataset.note].name}`;
+    const k = `${W}|${D}|${exList()[inp.dataset.note].id}`;
     if(inp.value) LOG.notes[k] = inp.value; else delete LOG.notes[k];
     inp.style.height="auto"; inp.style.height=inp.scrollHeight+"px";
     save();
