@@ -1,4 +1,9 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Meso 01</title>
 <style>
   :root{
     --ink:#14181d;
@@ -90,6 +95,8 @@
   .saving.on{opacity:1}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
+</head>
+<body>
 
 <div class="wrap">
   <header>
@@ -167,19 +174,67 @@ const PROGRAM = {
   ]
 };
 
-const KEY = "meso01";
-let LOG = {};
+/* ---- storage ----
+   Everything lives under one localStorage key as a versioned envelope:
+   { schemaVersion, updatedAt, mesos: { <mesoId>: { sets, notes } } }
+   sets:  "week|day|exercise name|setIdx" -> {weight, reps, done}  (weight/reps: number or null)
+   notes: "week|day|exercise name" -> string
+   Keyed by exercise name, not list position, so reordering or swapping
+   exercises in PROGRAM never mislabels old logs.
+   Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
+const STORE_KEY = "meso-tracker";
+const SCHEMA_VERSION = 1;
+const MESO_ID = "meso01";
+
+// MIGRATIONS[n] upgrades a store from schemaVersion n to n+1.
+const MIGRATIONS = {};
+
+function freshStore(){ return {schemaVersion:SCHEMA_VERSION, updatedAt:null, mesos:{}}; }
+
+function migrate(store){
+  while(store.schemaVersion < SCHEMA_VERSION){
+    const step = MIGRATIONS[store.schemaVersion];
+    if(!step){ backupRaw(JSON.stringify(store)); return freshStore(); }
+    store = step(store);
+    store.schemaVersion++;
+  }
+  return store;
+}
+
+// Parked, never overwritten by the app — recoverable by hand if something goes wrong.
+function backupRaw(raw){ try{ localStorage.setItem(STORE_KEY+".backup", raw); }catch(e){} }
+
+const storage = {
+  async get(){
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw === null) return freshStore();
+    let s = null;
+    try{ s = JSON.parse(raw); }catch(e){}
+    if(!s || typeof s !== "object" || typeof s.schemaVersion !== "number"){
+      backupRaw(raw);
+      return freshStore();
+    }
+    return migrate(s);
+  },
+  async set(store){
+    store.updatedAt = new Date().toISOString();
+    localStorage.setItem(STORE_KEY, JSON.stringify(store));
+  }
+};
+
+let STORE = freshStore();
+let LOG = {sets:{}, notes:{}};
 let W = 1, D = "mon";
 
 const $ = id => document.getElementById(id);
-const cell = (w,d,e,s) => `${w}|${d}|${e}|${s}`;
+const cell = (w,d,exName,s) => `${w}|${d}|${exName}|${s}`;
 
 let saveTimer=null;
 function save(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async ()=>{
     try{
-      await window.storage.set(KEY, JSON.stringify(LOG));
+      await storage.set(STORE);
       const t=$("toast"); t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),900);
     }catch(err){
       const t=$("toast"); t.textContent="NOT SAVED — RETRY"; t.classList.add("on");
@@ -189,10 +244,11 @@ function save(){
 }
 
 async function load(){
-  try{
-    const r = await window.storage.get(KEY);
-    LOG = r && r.value ? JSON.parse(r.value) : {};
-  }catch(e){ LOG = {}; }
+  STORE = await storage.get();
+  if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}};
+  LOG = STORE.mesos[MESO_ID];
+  LOG.sets = LOG.sets || {};
+  LOG.notes = LOG.notes || {};
 }
 
 function dayObj(){ return PROGRAM.days.find(d=>d.key===D); }
@@ -216,30 +272,30 @@ function renderDay(){
   $("days").innerHTML = d.ex.map((ex,ei)=>{
     const n = ex.sets[W-1];
     const rows = Array.from({length:n},(_,si)=>{
-      const c = LOG[cell(W,D,ei,si)] || {};
-      const prev = W>1 ? (LOG[cell(W-1,D,ei,si)] || null) : null;
+      const c = LOG.sets[cell(W,D,ex.name,si)] || {};
+      const prev = W>1 ? (LOG.sets[cell(W-1,D,ex.name,si)] || null) : null;
       let ghost = "";
-      if(prev && (prev.w||prev.r)) ghost = `last ${prev.w||"–"}×${prev.r||"–"}`;
+      if(prev && (prev.weight||prev.reps)) ghost = `last ${prev.weight||"–"}×${prev.reps||"–"}`;
       else if(W===1 && ex.start) ghost = `start ${ex.start}`;
       else if(W===1 && ex.start===null) ghost = `find it`;
-      return `<div class="row ${c.d?'logged':''}" data-r="${ei}-${si}">
+      return `<div class="row ${c.done?'logged':''}" data-r="${ei}-${si}">
         <div class="setno">${si+1}</div>
         <div class="fieldwrap">
           <input type="number" inputmode="decimal" step="0.5" data-f="w" data-e="${ei}" data-s="${si}"
-            value="${c.w??""}" placeholder="${ex.start!==null&&ex.start!==0?ex.start:""}">
+            value="${c.weight??""}" placeholder="${ex.start!==null&&ex.start!==0?ex.start:""}">
           <span class="ghost">${ghost}</span>
         </div>
         <div class="fieldwrap">
-          <input type="number" inputmode="numeric" data-f="r" data-e="${ei}" data-s="${si}" value="${c.r??""}">
+          <input type="number" inputmode="numeric" data-f="r" data-e="${ei}" data-s="${si}" value="${c.reps??""}">
           <span class="ghost"></span>
         </div>
-        <button class="chk" data-e="${ei}" data-s="${si}" aria-pressed="${!!c.d}" aria-label="Mark set ${si+1} done">
+        <button class="chk" data-e="${ei}" data-s="${si}" aria-pressed="${!!c.done}" aria-label="Mark set ${si+1} done">
           <svg viewBox="0 0 24 24"><polyline points="4,13 9,18 20,6"/></svg>
         </button>
       </div>`;
     }).join("");
-    const allDone = Array.from({length:n},(_,si)=>LOG[cell(W,D,ei,si)]?.d).every(Boolean);
-    const noteVal = (LOG[`note|${W}|${D}|${ei}`]||{}).t || "";
+    const allDone = Array.from({length:n},(_,si)=>LOG.sets[cell(W,D,ex.name,si)]?.done).every(Boolean);
+    const noteVal = LOG.notes[`${W}|${D}|${ex.name}`] || "";
     return `<div class="card ${allDone?'done':''}">
       <div class="tag">${ex.muscle}</div>
       <div class="exname">${ex.name}</div>
@@ -273,15 +329,15 @@ document.addEventListener("click", e=>{
   if(db){ D = db.dataset.d; render(); window.scrollTo(0,0); return; }
   const chk = e.target.closest(".chk");
   if(chk){
-    const k = cell(W,D,chk.dataset.e,chk.dataset.s);
-    LOG[k] = LOG[k] || {};
-    LOG[k].d = !LOG[k].d;
+    const k = cell(W,D,dayObj().ex[chk.dataset.e].name,chk.dataset.s);
+    LOG.sets[k] = LOG.sets[k] || {};
+    LOG.sets[k].done = !LOG.sets[k].done;
     save(); renderDay();
     return;
   }
   if(e.target.id==="resetBtn"){
     if(confirm("Clear every logged weight, rep and note in this meso? The program itself stays.")){
-      LOG = {}; save(); render();
+      LOG.sets = {}; LOG.notes = {}; save(); render();
     }
   }
 });
@@ -289,13 +345,14 @@ document.addEventListener("click", e=>{
 document.addEventListener("input", e=>{
   const inp = e.target;
   if(inp.dataset.f){
-    const k = cell(W,D,inp.dataset.e,inp.dataset.s);
-    LOG[k] = LOG[k] || {};
-    LOG[k][inp.dataset.f] = inp.value;
+    const k = cell(W,D,dayObj().ex[inp.dataset.e].name,inp.dataset.s);
+    LOG.sets[k] = LOG.sets[k] || {};
+    LOG.sets[k][inp.dataset.f==="w"?"weight":"reps"] = inp.value==="" ? null : Number(inp.value);
     save();
   }
   if(inp.dataset.note!==undefined){
-    LOG[`note|${W}|${D}|${inp.dataset.note}`] = {t:inp.value};
+    const k = `${W}|${D}|${dayObj().ex[inp.dataset.note].name}`;
+    if(inp.value) LOG.notes[k] = inp.value; else delete LOG.notes[k];
     inp.style.height="auto"; inp.style.height=inp.scrollHeight+"px";
     save();
   }
@@ -303,3 +360,5 @@ document.addEventListener("input", e=>{
 
 (async ()=>{ await load(); render(); })();
 </script>
+</body>
+</html>
