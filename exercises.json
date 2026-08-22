@@ -43,7 +43,7 @@
       "cue": "Log reps only. Leave the weight field empty." },
 
     { "id": "machine_flye", "name": "Machine Flye", "slot": "chest_flye", "muscle": "Chest",
-      "equipment": ["machine"], "unit": "", "spinalLoad": "low" },
+      "equipment": ["machine"], "unit": "", "spinalLoad": "low", "step": 2.5 },
     { "id": "cable_flye_mid", "name": "Cable Flye", "slot": "chest_flye", "muscle": "Chest",
       "equipment": ["cable"], "unit": "", "spinalLoad": "low" },
     { "id": "cable_flye_low", "name": "Low-to-High Cable Flye", "slot": "chest_flye", "muscle": "Chest",

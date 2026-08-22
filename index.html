@@ -170,6 +170,19 @@
   .note:focus{outline:none;color:var(--ink)}
   .note::placeholder{color:var(--placeholder)}
 
+  /* ---- progression suggestion + feedback ---- */
+  .suggest{font-family:var(--mono);font-size:12px;color:var(--ink-2);border-left:2px solid var(--signal);
+    padding:5px 8px;margin:0 0 10px}
+  .suggest.warn{border-left-color:var(--deload)}
+  .fbrow{display:flex;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line-2)}
+  .fbl{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-right:2px}
+  .fb{appearance:none;border:1px solid var(--line-2);background:transparent;color:var(--ink-3);
+    font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+    padding:8px 11px;border-radius:2px;cursor:pointer}
+  .fb[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+  .fbpain{margin-left:auto}
+  .fbpain[aria-pressed="true"]{background:var(--deload);border-color:var(--deload);color:#fff}
+
   /* ---- volume sheet ---- */
   .vol{margin:18px 14px 0;border-top:1px solid var(--line)}
   .vol summary{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
@@ -282,7 +295,7 @@ const LIBRARY = {
       equipment:["none"], unit:"bodyweight", spinalLoad:"low",
       cue:"Log reps only. Leave the weight field empty." },
     { id:"machine_flye", name:"Machine Flye", slot:"chest_flye", muscle:"Chest",
-      equipment:["machine"], unit:"", spinalLoad:"low" },
+      equipment:["machine"], unit:"", spinalLoad:"low", step:2.5 },
     { id:"cable_flye_mid", name:"Cable Flye", slot:"chest_flye", muscle:"Chest",
       equipment:["cable"], unit:"", spinalLoad:"low" },
     { id:"cable_flye_low", name:"Low-to-High Cable Flye", slot:"chest_flye", muscle:"Chest",
@@ -757,6 +770,49 @@ function exList(){
   return out;
 }
 
+/* ---- wiring: stored data -> suggestLoad inputs ---- */
+const REP_RANGE_RE = /^(\d+)\s*[–-]\s*(\d+)$/;
+function parseRange(reps){
+  const m = REP_RANGE_RE.exec(reps || "");
+  return m ? {bottom:+m[1], top:+m[2]} : null;
+}
+
+// §2: smallest step physically available; a per-exercise step override wins.
+const EQUIP_STEP = [["dumbbell",5],["barbell",5],["cable",10],["machine",10],
+                    ["leg press",10],["hack squat",10],["assisted pull-up machine",10]];
+function stepFor(ex){
+  const lib = LIB_EX.get(ex.id);
+  if(typeof lib.step === "number") return lib.step;
+  for(const [eq, st] of EQUIP_STEP) if(ex.equipment.includes(eq)) return st;
+  return 5;
+}
+
+// Suggestion for the current week from last week's data, same (day, exerciseId).
+// A swapped-in exercise has no sets under its id -> NO_DATA; never inherited.
+function suggestFor(ex){
+  const priorWeek = W - 1;
+  const priorSets = [];
+  let prescribed = 0;
+  if(W > 1){
+    prescribed = ex.sets[W-2];
+    for(let si = 0; si < prescribed; si++){
+      const c = LOG.sets[cell(priorWeek, D, ex.id, si)];
+      if(c) priorSets.push({weight: c.weight, reps: c.reps});
+    }
+  }
+  return suggestLoad({
+    priorSets,
+    prescribed,
+    range: parseRange(ex.reps) || {bottom:0, top:0},
+    step: stepFor(ex),
+    equipment: ex.unit === "bodyweight" ? "bodyweight" : "loaded",
+    feedback: LOG.feedback[`${priorWeek}|${D}|${ex.id}`] || null,
+    currentWeek: W,
+    startLoad: ex.start,
+    rir: weekObj().rir
+  });
+}
+
 function renderHeader(){
   $("weekSeg").innerHTML = PROGRAM.weeks.map(w=>
     `<button data-w="${w.n}" class="${w.n===4?'dl':''}" aria-pressed="${w.n===W}">Wk ${w.n}</button>`).join("");
@@ -798,6 +854,8 @@ function renderDay(){
     }).join("");
     const allDone = Array.from({length:n},(_,si)=>LOG.sets[cell(W,D,ex.id,si)]?.done).every(Boolean);
     const noteVal = LOG.notes[`${W}|${D}|${ex.id}`] || "";
+    const sug = suggestFor(ex);
+    const fb = LOG.feedback[`${W}|${D}|${ex.id}`] || {};
     return `<div class="card ${allDone?'done':''} ${ex.swapped?'swapped':''}" data-ex="${ex.programId}">
       <div class="exhead">
         <div>
@@ -817,8 +875,15 @@ function renderDay(){
       </div>
       <div class="prescribe">${n} × ${ex.reps}${ex.unit?` · ${ex.unit}`:""} · ${weekObj().rir} RIR</div>
       ${ex.cue?`<div class="cue">${ex.cue}</div>`:""}
+      <div class="suggest ${sug.outcome==="DELOAD"||sug.outcome==="PAIN"?"warn":""}">${sug.text}</div>
       <div class="hdr"><div></div><div>Weight</div><div>Reps</div><div></div></div>
       ${rows}
+      <div class="fbrow">
+        <span class="fbl">felt</span>
+        ${["easy","right","brutal"].map(o=>
+          `<button class="fb" data-fb="${o}" data-e="${ei}" aria-pressed="${fb.effort===o}">${o}</button>`).join("")}
+        <button class="fb fbpain" data-fb="pain" data-e="${ei}" aria-pressed="${!!fb.pain}">pain</button>
+      </div>
       <textarea class="note" rows="1" data-note="${ei}" placeholder="Note…">${noteVal}</textarea>
     </div>`;
   }).join("");
@@ -1061,6 +1126,19 @@ document.addEventListener("click", e=>{
   if(wb){ W = +wb.dataset.w; render(); window.scrollTo(0,0); return; }
   const db = e.target.closest("#daySeg button");
   if(db){ D = db.dataset.d; render(); window.scrollTo(0,0); return; }
+  const fbBtn = e.target.closest(".fb");
+  if(fbBtn){
+    const k = `${W}|${D}|${exList()[fbBtn.dataset.e].id}`;
+    const cur = LOG.feedback[k] || {};
+    const v = fbBtn.dataset.fb;
+    if(v === "pain") cur.pain = !cur.pain;
+    else if(cur.effort === v) delete cur.effort;   // tap active option again to clear
+    else cur.effort = v;
+    if(cur.effort === undefined && !cur.pain) delete LOG.feedback[k];
+    else LOG.feedback[k] = cur;
+    save(); renderDay();
+    return;
+  }
   const chk = e.target.closest(".chk");
   if(chk){
     const k = cell(W,D,exList()[chk.dataset.e].id,chk.dataset.s);
