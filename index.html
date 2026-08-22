@@ -45,6 +45,14 @@
   .card{background:var(--card);border:1px solid var(--line-2);border-top:2px solid var(--ink);
     margin:14px 14px 0;padding:12px 12px 4px}
   .card.done{border-top-color:var(--logged)}
+  .exhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;cursor:grab;
+    user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  .grip{flex:none;padding:5px 2px 5px 12px}
+  .grip svg{width:10px;height:16px;fill:var(--line);display:block}
+  .card.drag-src{opacity:.35}
+  .card.drag-ghost{position:fixed;z-index:60;margin:0;box-shadow:0 10px 28px rgba(20,24,29,.28);
+    pointer-events:none;border-top-color:var(--signal)}
+  .no-select, .no-select *{user-select:none;-webkit-user-select:none}
   .tag{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
   .exname{font-size:17px;font-weight:700;letter-spacing:-.01em;margin:1px 0 2px}
   .prescribe{font-family:var(--mono);font-size:12px;color:var(--signal);margin-bottom:10px}
@@ -179,15 +187,19 @@ const PROGRAM = {
    { schemaVersion, updatedAt, mesos: { <mesoId>: { sets, notes } } }
    sets:  "week|day|exercise name|setIdx" -> {weight, reps, done}  (weight/reps: number or null)
    notes: "week|day|exercise name" -> string
+   order: dayKey -> [exercise names], drag-to-reorder override of PROGRAM order
    Keyed by exercise name, not list position, so reordering or swapping
    exercises in PROGRAM never mislabels old logs.
    Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
 const STORE_KEY = "meso-tracker";
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 const MESO_ID = "meso01";
 
 // MIGRATIONS[n] upgrades a store from schemaVersion n to n+1.
-const MIGRATIONS = {};
+const MIGRATIONS = {
+  // v2 added per-day exercise order overrides
+  1: s => { Object.values(s.mesos).forEach(m => { m.order = m.order || {}; }); return s; }
+};
 
 function freshStore(){ return {schemaVersion:SCHEMA_VERSION, updatedAt:null, mesos:{}}; }
 
@@ -245,14 +257,28 @@ function save(){
 
 async function load(){
   STORE = await storage.get();
-  if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}};
+  if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}, order:{}};
   LOG = STORE.mesos[MESO_ID];
   LOG.sets = LOG.sets || {};
   LOG.notes = LOG.notes || {};
+  LOG.order = LOG.order || {};
 }
 
 function dayObj(){ return PROGRAM.days.find(d=>d.key===D); }
 function weekObj(){ return PROGRAM.weeks[W-1]; }
+
+// Today's exercises in display order: the saved drag order if there is one,
+// with any exercise not in it (added to PROGRAM later) appended in PROGRAM order.
+function exList(){
+  const d = dayObj();
+  const ord = LOG.order[d.key];
+  if(!ord || !ord.length) return d.ex;
+  const byName = new Map(d.ex.map(e=>[e.name,e]));
+  const out = [];
+  ord.forEach(n=>{ if(byName.has(n)){ out.push(byName.get(n)); byName.delete(n); } });
+  byName.forEach(e=>out.push(e));
+  return out;
+}
 
 function renderHeader(){
   $("weekSeg").innerHTML = PROGRAM.weeks.map(w=>
@@ -268,8 +294,7 @@ function renderHeader(){
 }
 
 function renderDay(){
-  const d = dayObj();
-  $("days").innerHTML = d.ex.map((ex,ei)=>{
+  $("days").innerHTML = exList().map((ex,ei)=>{
     const n = ex.sets[W-1];
     const rows = Array.from({length:n},(_,si)=>{
       const c = LOG.sets[cell(W,D,ex.name,si)] || {};
@@ -296,9 +321,18 @@ function renderDay(){
     }).join("");
     const allDone = Array.from({length:n},(_,si)=>LOG.sets[cell(W,D,ex.name,si)]?.done).every(Boolean);
     const noteVal = LOG.notes[`${W}|${D}|${ex.name}`] || "";
-    return `<div class="card ${allDone?'done':''}">
-      <div class="tag">${ex.muscle}</div>
-      <div class="exname">${ex.name}</div>
+    return `<div class="card ${allDone?'done':''}" data-ex="${ex.name}">
+      <div class="exhead">
+        <div>
+          <div class="tag">${ex.muscle}</div>
+          <div class="exname">${ex.name}</div>
+        </div>
+        <div class="grip" aria-hidden="true"><svg viewBox="0 0 10 16">
+          <circle cx="2.5" cy="2" r="1.6"/><circle cx="7.5" cy="2" r="1.6"/>
+          <circle cx="2.5" cy="8" r="1.6"/><circle cx="7.5" cy="8" r="1.6"/>
+          <circle cx="2.5" cy="14" r="1.6"/><circle cx="7.5" cy="14" r="1.6"/>
+        </svg></div>
+      </div>
       <div class="prescribe">${n} × ${ex.reps}${ex.unit?` · ${ex.unit}`:""} · ${weekObj().rir} RIR</div>
       ${ex.cue?`<div class="cue">${ex.cue}</div>`:""}
       <div class="hdr"><div></div><div>Weight</div><div>Reps</div><div></div></div>
@@ -322,6 +356,108 @@ function renderVolume(){
 
 function render(){ renderHeader(); renderDay(); renderVolume(); }
 
+/* ---- hold-and-drag to reorder exercises ----
+   Hold the exercise header ~1/3s, then drag. Before the hold completes the
+   gesture stays a normal scroll; after it completes, touchmove is prevented
+   (non-passive) so the browser never hijacks the drag as a scroll. A fixed-
+   position clone follows the finger while the real card re-slots live. */
+const HOLD_MS = 350, DRAG_SLOP = 12, EDGE = 70, EDGE_SPEED = 8;
+let drag = null;
+
+function commitOrder(){
+  const now = [...$("days").querySelectorAll(".card")].map(c=>c.dataset.ex);
+  if(now.join("|") !== exList().map(x=>x.name).join("|")){
+    LOG.order[D] = now;
+    save();
+  }
+}
+
+function placeSrc(y){
+  const wrap = $("days");
+  let after = null;
+  for(const c of wrap.querySelectorAll(".card")){
+    if(c === drag.card) continue;
+    const r = c.getBoundingClientRect();
+    if(y > r.top + r.height/2) after = c;
+  }
+  if(after) after.after(drag.card); else wrap.prepend(drag.card);
+}
+
+function beginDrag(){
+  if(!drag) return;
+  const r = drag.card.getBoundingClientRect();
+  drag.grabDY = drag.startY - r.top;
+  const g = drag.card.cloneNode(true);
+  g.classList.add("drag-ghost");
+  g.style.width = r.width+"px"; g.style.left = r.left+"px"; g.style.top = r.top+"px";
+  document.body.appendChild(g);
+  drag.ghost = g;
+  drag.card.classList.add("drag-src");
+  document.body.classList.add("no-select");
+  drag.started = true;
+  drag.lastY = drag.startY;
+  if(navigator.vibrate) navigator.vibrate(15);
+  drag.raf = requestAnimationFrame(dragTick);
+}
+
+function dragTick(){
+  if(!drag || !drag.started) return;
+  const y = drag.lastY;
+  if(y < EDGE) window.scrollBy(0, -EDGE_SPEED);
+  else if(y > innerHeight - EDGE) window.scrollBy(0, EDGE_SPEED);
+  placeSrc(y);
+  drag.raf = requestAnimationFrame(dragTick);
+}
+
+function dragMove(e){
+  if(!drag || e.pointerId !== drag.pid) return;
+  if(!drag.started){
+    if(Math.hypot(e.clientX-drag.startX, e.clientY-drag.startY) > DRAG_SLOP) endDrag(false);
+    return;
+  }
+  drag.lastY = e.clientY;
+  drag.ghost.style.top = (e.clientY - drag.grabDY)+"px";
+  placeSrc(e.clientY);
+}
+
+function dragUp(e){ if(drag && e.pointerId === drag.pid) endDrag(true); }
+function dragCancel(e){ if(drag && e.pointerId === drag.pid) endDrag(false); }
+function preventScroll(e){ if(drag && drag.started) e.preventDefault(); }
+
+function endDrag(commit){
+  clearTimeout(drag.timer);
+  cancelAnimationFrame(drag.raf);
+  if(drag.ghost) drag.ghost.remove();
+  drag.card.classList.remove("drag-src");
+  document.body.classList.remove("no-select");
+  document.removeEventListener("pointermove", dragMove);
+  document.removeEventListener("pointerup", dragUp);
+  document.removeEventListener("pointercancel", dragCancel);
+  document.removeEventListener("touchmove", preventScroll);
+  const started = drag.started;
+  drag = null;
+  if(started){
+    if(commit) commitOrder();
+    renderDay();   // commit or not, redraw from the stored order
+  }
+}
+
+$("days").addEventListener("pointerdown", e=>{
+  if(!e.isPrimary || !e.target.closest(".exhead")) return;
+  drag = {card: e.target.closest(".card"), pid: e.pointerId,
+          startX: e.clientX, startY: e.clientY, started: false,
+          timer: setTimeout(beginDrag, HOLD_MS)};
+  document.addEventListener("pointermove", dragMove);
+  document.addEventListener("pointerup", dragUp);
+  document.addEventListener("pointercancel", dragCancel);
+  document.addEventListener("touchmove", preventScroll, {passive:false});
+});
+
+// Android fires a context menu on long-press; keep it off the drag handle.
+$("days").addEventListener("contextmenu", e=>{
+  if(e.target.closest(".exhead")) e.preventDefault();
+});
+
 document.addEventListener("click", e=>{
   const wb = e.target.closest("#weekSeg button");
   if(wb){ W = +wb.dataset.w; render(); window.scrollTo(0,0); return; }
@@ -329,7 +465,7 @@ document.addEventListener("click", e=>{
   if(db){ D = db.dataset.d; render(); window.scrollTo(0,0); return; }
   const chk = e.target.closest(".chk");
   if(chk){
-    const k = cell(W,D,dayObj().ex[chk.dataset.e].name,chk.dataset.s);
+    const k = cell(W,D,exList()[chk.dataset.e].name,chk.dataset.s);
     LOG.sets[k] = LOG.sets[k] || {};
     LOG.sets[k].done = !LOG.sets[k].done;
     save(); renderDay();
@@ -345,13 +481,13 @@ document.addEventListener("click", e=>{
 document.addEventListener("input", e=>{
   const inp = e.target;
   if(inp.dataset.f){
-    const k = cell(W,D,dayObj().ex[inp.dataset.e].name,inp.dataset.s);
+    const k = cell(W,D,exList()[inp.dataset.e].name,inp.dataset.s);
     LOG.sets[k] = LOG.sets[k] || {};
     LOG.sets[k][inp.dataset.f==="w"?"weight":"reps"] = inp.value==="" ? null : Number(inp.value);
     save();
   }
   if(inp.dataset.note!==undefined){
-    const k = `${W}|${D}|${dayObj().ex[inp.dataset.note].name}`;
+    const k = `${W}|${D}|${exList()[inp.dataset.note].name}`;
     if(inp.value) LOG.notes[k] = inp.value; else delete LOG.notes[k];
     inp.style.height="auto"; inp.style.height=inp.scrollHeight+"px";
     save();
