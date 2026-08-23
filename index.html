@@ -28,6 +28,7 @@
     --field:#fff;
     --field-logged:#eef1f2;
     --placeholder:#a8b1b8;
+    --active-bg:#e7eef5;
     --mono:ui-monospace,"SF Mono",Menlo,"Roboto Mono","Courier New",monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   }
@@ -39,64 +40,79 @@
   @media (prefers-color-scheme:dark){
     :root:not([data-theme="light"]){
       color-scheme:dark;
-      --ink:#e6eaed;
-      --ink-2:#aab4bd;
-      --ink-3:#8a95a0;
-      --paper:#111519;
-      --card:#1a2026;
-      --line:#3d4750;
-      --line-2:#272e35;
-      --signal:#82b8de;
-      --logged:#35977a;
-      --deload:#c58e55;
-      --banner-bg:#271e15;
-      --banner-ink:#d9b48b;
-      --cue-bg:#232a31;
-      --field:#12161a;
-      --field-logged:#20262d;
-      --placeholder:#5d6873;
+      --ink:#f2f6f9;
+      --ink-2:#c2ccd5;
+      --ink-3:#a2adb8;
+      --paper:#131920;
+      --card:#212932;
+      --line:#55626d;
+      --line-2:#333d46;
+      --signal:#93c8ee;
+      --logged:#45b894;
+      --deload:#dba569;
+      --banner-bg:#2e2318;
+      --banner-ink:#e6c9a6;
+      --cue-bg:#2a333c;
+      --field:#171d24;
+      --field-logged:#262f38;
+      --placeholder:#6d7985;
+      --active-bg:#2c3742;
     }
   }
   :root[data-theme="dark"]{
     color-scheme:dark;
-    --ink:#e6eaed;
-    --ink-2:#aab4bd;
-    --ink-3:#8a95a0;
-    --paper:#111519;
-    --card:#1a2026;
-    --line:#3d4750;
-    --line-2:#272e35;
-    --signal:#82b8de;
-    --logged:#35977a;
-    --deload:#c58e55;
-    --banner-bg:#271e15;
-    --banner-ink:#d9b48b;
-    --cue-bg:#232a31;
-    --field:#12161a;
-    --field-logged:#20262d;
-    --placeholder:#5d6873;
+    --ink:#f2f6f9;
+    --ink-2:#c2ccd5;
+    --ink-3:#a2adb8;
+    --paper:#131920;
+    --card:#212932;
+    --line:#55626d;
+    --line-2:#333d46;
+    --signal:#93c8ee;
+    --logged:#45b894;
+    --deload:#dba569;
+    --banner-bg:#2e2318;
+    --banner-ink:#e6c9a6;
+    --cue-bg:#2a333c;
+    --field:#171d24;
+    --field-logged:#262f38;
+    --placeholder:#6d7985;
+    --active-bg:#2c3742;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.4}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.4}
   .wrap{max-width:560px;margin:0 auto;padding:0 0 96px}
 
-  /* ---- header ---- */
-  header{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line);padding:10px 14px 0}
-  .brandrow{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:8px}
-  .brand{font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+  /* ---- header: compact, scrolls away. The dashboard below it is what sticks. ---- */
+  header{background:var(--paper);padding:8px 14px 0}
+  .brandrow{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:7px}
+  .brand{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
   .rir{font-family:var(--mono);font-size:12px;color:var(--ink-2);letter-spacing:.02em}
-  .rir b{color:var(--signal);font-size:14px}
+  .rir b{color:var(--signal);font-size:13px}
   .hright{display:flex;align-items:baseline;gap:10px}
   .themeBtn{appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink-2);
     font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
     padding:5px 8px;border-radius:2px;cursor:pointer;min-width:52px}
-  .seg{display:flex;gap:6px;margin-bottom:8px}
+  .seg{display:flex;gap:6px;margin-bottom:7px}
   .seg button{flex:1;appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink-2);
-    font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
-    padding:9px 0;border-radius:2px;cursor:pointer}
+    font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    padding:10px 0;border-radius:2px;cursor:pointer}
   .seg button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
   .seg.weeks button[aria-pressed="true"].dl{background:var(--deload);border-color:var(--deload)}
-  .daymeta{font-size:12px;color:var(--ink-3);padding:0 0 10px;display:flex;justify-content:space-between;font-family:var(--mono)}
+  .daymeta{font-size:12px;color:var(--ink-3);padding:0 0 8px;font-family:var(--mono)}
+
+  /* ---- sticky dashboard: session · rest · sets left ---- */
+  .dash{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:1fr 1fr auto;
+    gap:1px;background:var(--line-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .dcell{appearance:none;border:none;background:var(--paper);color:var(--ink);font-family:var(--mono);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    padding:9px 10px;min-height:60px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .dcell.count{cursor:default;min-width:96px}
+  .dlabel{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+  .dval{font-size:23px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+  .dcell.on .dval, .dcell.on .dlabel{color:var(--signal)}
+  .dcell.count .dval{color:var(--logged)}
+  .dcell.count.zero .dval{color:var(--ink-3)}
 
   /* ---- deload banner ---- */
   .banner{margin:12px 14px 0;padding:10px 12px;border-left:3px solid var(--deload);background:var(--banner-bg);
@@ -136,49 +152,60 @@
   .opt[aria-pressed="true"]{border-color:var(--signal);outline:1px solid var(--signal);outline-offset:-1px}
   .opt[aria-pressed="true"] .oname::after{content:" · current";color:var(--signal);
     font-size:11px;font-family:var(--mono);font-weight:600}
-  .tag{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
-  .exname{font-size:17px;font-weight:700;letter-spacing:-.01em;margin:1px 0 2px}
-  .prescribe{font-family:var(--mono);font-size:12px;color:var(--signal);margin-bottom:10px}
-  .cue{font-size:12px;color:var(--ink-2);background:var(--cue-bg);border-left:2px solid var(--line);
-    padding:6px 8px;margin:0 0 10px}
+  .tag{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+  .exname{font-size:19px;font-weight:700;letter-spacing:-.01em;margin:1px 0 2px}
+  .prescribe{font-family:var(--mono);font-size:13px;color:var(--signal);margin-bottom:10px}
+  .cue{font-size:13px;color:var(--ink-2);background:var(--cue-bg);border-left:2px solid var(--line);
+    padding:7px 9px;margin:0 0 10px}
 
   /* ---- set rows ---- */
-  .hdr{display:grid;grid-template-columns:26px 1fr 1fr 46px;gap:8px;align-items:center;
-    font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);padding-bottom:4px}
-  .row{display:grid;grid-template-columns:26px 1fr 1fr 46px;gap:8px;align-items:center;
+  .hdr{display:grid;grid-template-columns:28px 1fr 1fr 46px;gap:8px;align-items:center;
+    font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);padding-bottom:4px}
+  .row{display:grid;grid-template-columns:28px 1fr 1fr 46px;gap:8px;align-items:center;
     padding:5px 0;border-top:1px solid var(--line-2)}
+
+  /* Active set: the next one due. Grows a little and takes a blue edge; the
+     inactive rows keep their 44px touch targets rather than shrinking. */
+  .row.active{background:var(--active-bg);box-shadow:inset 3px 0 0 var(--signal);border-radius:2px}
+  .row.active .setno{color:var(--signal);font-weight:700}
+  .row.active input[type=number]{padding:14px 8px;font-size:21px}
+  .row.active .chk{height:48px}
+  @media (prefers-reduced-motion:no-preference){
+    .row{transition:background .15s}
+    .row input[type=number]{transition:padding .15s,font-size .15s}
+  }
   /* The weight/reps columns carry a 15px ghost line under the input (2px
      padding + 13px min-height); offset the other columns by the same amount
      so everything centers on the input row, not the input+ghost stack. */
-  .setno{font-family:var(--mono);font-size:13px;color:var(--ink-3);text-align:center;margin-bottom:15px}
+  .setno{font-family:var(--mono);font-size:14px;color:var(--ink-3);text-align:center;margin-bottom:17px}
   .fieldwrap{position:relative}
   input[type=number]{width:100%;appearance:none;-moz-appearance:textfield;border:1px solid var(--line);
-    background:var(--field);border-radius:2px;padding:11px 8px 11px;font-family:var(--mono);font-size:17px;
+    background:var(--field);border-radius:2px;padding:11px 8px 11px;font-family:var(--mono);font-size:19px;
     font-weight:600;color:var(--ink);text-align:center}
   input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   input:focus{outline:2px solid var(--signal);outline-offset:-1px;border-color:var(--signal)}
-  .ghost{display:block;font-family:var(--mono);font-size:10px;color:var(--ink-3);text-align:center;padding-top:2px;min-height:13px}
+  .ghost{display:block;font-family:var(--mono);font-size:12px;color:var(--ink-3);text-align:center;padding-top:2px;min-height:15px}
   .chk{width:46px;height:44px;border:1px solid var(--line);background:var(--field);border-radius:2px;cursor:pointer;
-    display:flex;align-items:center;justify-content:center;padding:0;margin-bottom:15px}
+    display:flex;align-items:center;justify-content:center;padding:0;margin-bottom:17px}
   .chk svg{width:18px;height:18px;stroke:var(--line);stroke-width:3;fill:none;stroke-linecap:square}
   .chk[aria-pressed="true"]{background:var(--logged);border-color:var(--logged)}
   .chk[aria-pressed="true"] svg{stroke:#fff}
   .row.logged input{color:var(--ink-2);background:var(--field-logged)}
 
   .note{width:100%;border:none;border-top:1px solid var(--line-2);background:transparent;padding:9px 2px;
-    font-family:var(--sans);font-size:13px;color:var(--ink-2);resize:none;margin-top:6px}
+    font-family:var(--sans);font-size:14px;color:var(--ink-2);resize:none;margin-top:6px}
   .note:focus{outline:none;color:var(--ink)}
   .note::placeholder{color:var(--placeholder)}
 
   /* ---- progression suggestion + feedback ---- */
-  .suggest{font-family:var(--mono);font-size:12px;color:var(--ink-2);border-left:2px solid var(--signal);
-    padding:5px 8px;margin:0 0 10px}
+  .suggest{font-family:var(--mono);font-size:13px;color:var(--ink-2);border-left:2px solid var(--signal);
+    padding:6px 9px;margin:0 0 10px}
   .suggest.warn{border-left-color:var(--deload)}
   .fbrow{display:flex;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line-2)}
-  .fbl{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-right:2px}
-  .fb{appearance:none;border:1px solid var(--line-2);background:transparent;color:var(--ink-3);
-    font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
-    padding:8px 11px;border-radius:2px;cursor:pointer}
+  .fbl{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-right:2px}
+  .fb{appearance:none;border:1px solid var(--line-2);background:transparent;color:var(--ink-2);
+    font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+    padding:11px 12px;border-radius:2px;cursor:pointer}
   .fb[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
   .fbpain{margin-left:auto}
   .fbpain[aria-pressed="true"]{background:var(--deload);border-color:var(--deload);color:#fff}
@@ -216,8 +243,19 @@
     </div>
     <div class="seg weeks" id="weekSeg"></div>
     <div class="seg days" id="daySeg"></div>
-    <div class="daymeta"><span id="dayFocus"></span><span id="daySets"></span></div>
+    <div class="daymeta"><span id="dayFocus"></span></div>
   </header>
+  <div class="dash">
+    <button class="dcell" id="sessBtn" aria-label="Session stopwatch: tap to start or stop">
+      <span class="dlabel">Session</span><span class="dval" id="sessVal">0:00</span>
+    </button>
+    <button class="dcell" id="restBtn" aria-label="Rest stopwatch: tap to start or stop">
+      <span class="dlabel">Rest</span><span class="dval" id="restVal">0:00</span>
+    </button>
+    <div class="dcell count" id="setsCell">
+      <span class="dlabel">Sets left</span><span class="dval" id="setsLeft">0</span>
+    </div>
+  </div>
   <div id="bannerSlot"></div>
   <div id="days"></div>
   <details class="vol">
@@ -499,8 +537,10 @@ function resolveEx(p, dayKey){
 
 /* ---- storage ----
    Everything lives under one localStorage key as a versioned envelope:
-   { schemaVersion, updatedAt, settings, mesos: { <mesoId>: { sets, notes, order, swaps } } }
+   { schemaVersion, updatedAt, settings, timers, mesos: { <mesoId>: { sets, notes, order, swaps } } }
    settings: { theme: "auto" | "light" | "dark" }
+   timers:   { sessionStart, restStart } — epoch ms or null. UI state, not
+   training data: elapsed is derived from these, never accumulated.
    sets:  "week|day|exercise id|setIdx" -> {weight, reps, done}  (weight/reps: number or null)
    notes: "week|day|exercise id" -> string
    order: dayKey -> [program exercise ids], drag-to-reorder override of PROGRAM order
@@ -515,7 +555,7 @@ function resolveEx(p, dayKey){
    renames, reorders and swaps never mislabel old logs.
    Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
 const STORE_KEY = "meso-tracker";
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 const MESO_ID = "meso01";
 
 /* v3 -> v4: exact display-name -> library-id table for every exercise that has
@@ -584,10 +624,16 @@ const MIGRATIONS = {
     backupRaw(JSON.stringify(s));
     Object.values(s.mesos).forEach(m => { m.feedback = m.feedback || {}; });
     return s;
-  }
+  },
+  // v7 added the session and rest stopwatches. Envelope-level UI state, not
+  // training data: two timestamps or null, nothing per-meso touched.
+  6: s => { s.timers = s.timers || {sessionStart:null, restStart:null}; return s; }
 };
 
-function freshStore(){ return {schemaVersion:SCHEMA_VERSION, updatedAt:null, settings:{theme:"auto"}, mesos:{}}; }
+function freshStore(){
+  return {schemaVersion:SCHEMA_VERSION, updatedAt:null, settings:{theme:"auto"},
+          timers:{sessionStart:null, restStart:null}, mesos:{}};
+}
 
 function migrate(store){
   while(store.schemaVersion < SCHEMA_VERSION){
@@ -644,6 +690,11 @@ function save(){
 async function load(){
   STORE = await storage.get();
   STORE.settings = STORE.settings || {theme:"auto"};
+  STORE.timers = STORE.timers || {sessionStart:null, restStart:null};
+  // A stopwatch still running hours later was forgotten, not left resting.
+  const STALE = 6*3600*1000, tNow = Date.now();
+  if(STORE.timers.sessionStart && tNow - STORE.timers.sessionStart > STALE) STORE.timers.sessionStart = null;
+  if(STORE.timers.restStart && tNow - STORE.timers.restStart > STALE) STORE.timers.restStart = null;
   if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}, order:{}, swaps:{}, feedback:{}};
   LOG = STORE.mesos[MESO_ID];
   LOG.sets = LOG.sets || {};
@@ -856,9 +907,6 @@ function renderHeader(){
     `<button data-d="${d.key}" aria-pressed="${d.key===D}">${d.label}</button>`).join("");
   $("rirLabel").innerHTML = `Target RIR <b>${weekObj().rir}</b>`;
   $("dayFocus").textContent = dayObj().focus;
-  const total = dayObj().ex.reduce((a,e)=>a+e.sets[W-1],0);
-  $("daySets").textContent = `${total} working sets`;
-
   $("bannerSlot").innerHTML = weekObj().note ? `<div class="banner">${weekObj().note}</div>` : "";
 }
 
@@ -923,6 +971,7 @@ function renderDay(){
       <textarea class="note" rows="1" data-note="${ei}" placeholder="Note…">${noteVal}</textarea>
     </div>`;
   }).join("");
+  paintActive();
 }
 
 function renderVolume(){
@@ -938,7 +987,69 @@ function renderVolume(){
       <div><span class="bar" style="width:${Math.round(v/max*72)}px"></span></div>`).join("");
 }
 
-function render(){ renderHeader(); renderDay(); renderVolume(); }
+/* ---- dashboard: two stopwatches and a live set count ----
+   Each stopwatch stores a start timestamp and derives elapsed on every tick,
+   so it stays correct across a phone lock or a PWA restart. Accumulating a
+   counter instead would drift or freeze the moment the browser throttles us. */
+const fmtClock = ms => {
+  const t = Math.max(0, Math.floor(ms/1000));
+  const h = Math.floor(t/3600), m = Math.floor(t%3600/60), s = t%60;
+  const pad = v => String(v).padStart(2,"0");
+  return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+};
+
+function setsLeft(){
+  let left = 0;
+  exList().forEach(ex => {
+    for(let si = 0; si < ex.sets[W-1]; si++)
+      if(!LOG.sets[cell(W,D,ex.id,si)]?.done) left++;
+  });
+  return left;
+}
+
+function tickDash(){
+  const t = STORE.timers, now = Date.now();
+  $("sessVal").textContent = t.sessionStart ? fmtClock(now - t.sessionStart) : "0:00";
+  $("restVal").textContent = t.restStart ? fmtClock(now - t.restStart) : "0:00";
+  $("sessBtn").classList.toggle("on", !!t.sessionStart);
+  $("restBtn").classList.toggle("on", !!t.restStart);
+}
+
+function renderDash(){
+  const n = setsLeft();
+  $("setsLeft").textContent = n;
+  $("setsCell").classList.toggle("zero", n === 0);
+  tickDash();
+}
+
+setInterval(tickDash, 1000);
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) tickDash(); });
+
+/* ---- active set: the next one due ----
+   First unchecked set in display order, advancing as sets are completed.
+   Focusing any input moves the marker there instead, so you can go back. */
+let activeOverride = null;
+
+function activeKey(){
+  if(activeOverride) return activeOverride;
+  const list = exList();
+  for(let ei = 0; ei < list.length; ei++)
+    for(let si = 0; si < list[ei].sets[W-1]; si++)
+      if(!LOG.sets[cell(W,D,list[ei].id,si)]?.done) return `${ei}-${si}`;
+  return null;
+}
+
+function paintActive(){
+  const k = activeKey();
+  $("days").querySelectorAll(".row").forEach(r => r.classList.toggle("active", r.dataset.r === k));
+}
+
+document.addEventListener("focusin", e => {
+  const row = e.target.closest && e.target.closest(".row");
+  if(row && row.dataset.r){ activeOverride = row.dataset.r; paintActive(); }
+});
+
+function render(){ renderHeader(); renderDay(); renderVolume(); renderDash(); }
 
 function toastMsg(msg){
   const t=$("toast"); t.textContent=msg; t.classList.add("on");
@@ -1159,9 +1270,18 @@ $("days").addEventListener("contextmenu", e=>{
 
 document.addEventListener("click", e=>{
   const wb = e.target.closest("#weekSeg button");
-  if(wb){ W = +wb.dataset.w; render(); window.scrollTo(0,0); return; }
+  if(wb){ W = +wb.dataset.w; activeOverride = null; render(); window.scrollTo(0,0); return; }
   const db = e.target.closest("#daySeg button");
-  if(db){ D = db.dataset.d; render(); window.scrollTo(0,0); return; }
+  if(db){ D = db.dataset.d; activeOverride = null; render(); window.scrollTo(0,0); return; }
+  // Stopwatches: tap to start, tap again to stop and zero.
+  if(e.target.closest("#sessBtn")){
+    STORE.timers.sessionStart = STORE.timers.sessionStart ? null : Date.now();
+    save(); tickDash(); return;
+  }
+  if(e.target.closest("#restBtn")){
+    STORE.timers.restStart = STORE.timers.restStart ? null : Date.now();
+    save(); tickDash(); return;
+  }
   const fbBtn = e.target.closest(".fb");
   if(fbBtn){
     const k = `${W}|${D}|${exList()[fbBtn.dataset.e].id}`;
@@ -1180,7 +1300,8 @@ document.addEventListener("click", e=>{
     const k = cell(W,D,exList()[chk.dataset.e].id,chk.dataset.s);
     LOG.sets[k] = LOG.sets[k] || {};
     LOG.sets[k].done = !LOG.sets[k].done;
-    save(); renderDay();
+    activeOverride = null;              // let the marker advance to the next set
+    save(); renderDay(); renderDash();
     return;
   }
   if(e.target.id==="themeBtn"){
