@@ -117,6 +117,7 @@
     white-space:nowrap}
   .dval{font-size:30px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
   .dcell.on .dval, .dcell.on .dlabel{color:var(--signal)}
+  .dcell.paused .dval, .dcell.paused .dlabel{color:var(--deload)}
   .dcell.count .dval{color:var(--logged)}
   .dcell.count.zero .dval{color:var(--ink-3)}
 
@@ -550,8 +551,10 @@ function resolveEx(p, dayKey){
    Everything lives under one localStorage key as a versioned envelope:
    { schemaVersion, updatedAt, settings, timers, mesos: { <mesoId>: { sets, notes, order, swaps } } }
    settings: { theme: "auto" | "light" | "dark" }
-   timers:   { sessionStart, restStart } — epoch ms or null. UI state, not
-   training data: elapsed is derived from these, never accumulated.
+   timers:   { sessionStart, sessionAccum, sessionDay, restStart } — UI state,
+   not training data. The session clock pauses, so elapsed is
+   sessionAccum + (sessionStart ? now - sessionStart : 0): banked time plus the
+   current run. sessionStart null with sessionAccum > 0 means paused.
    sets:  "week|day|exercise id|setIdx" -> {weight, reps, done}  (weight/reps: number or null)
    notes: "week|day|exercise id" -> string
    order: dayKey -> [program exercise ids], drag-to-reorder override of PROGRAM order
@@ -566,7 +569,7 @@ function resolveEx(p, dayKey){
    renames, reorders and swaps never mislabel old logs.
    Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
 const STORE_KEY = "meso-tracker";
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 const MESO_ID = "meso01";
 
 /* v3 -> v4: exact display-name -> library-id table for every exercise that has
@@ -638,12 +641,28 @@ const MIGRATIONS = {
   },
   // v7 added the session and rest stopwatches. Envelope-level UI state, not
   // training data: two timestamps or null, nothing per-meso touched.
-  6: s => { s.timers = s.timers || {sessionStart:null, restStart:null}; return s; }
+  6: s => { s.timers = s.timers || {sessionStart:null, restStart:null}; return s; },
+  // v8 made the session clock pausable, which a lone start timestamp cannot
+  // express: banked time and the day it belongs to are additive fields.
+  7: s => {
+    const t = s.timers = s.timers || {};
+    if(t.sessionStart === undefined) t.sessionStart = null;
+    if(t.restStart === undefined) t.restStart = null;
+    t.sessionAccum = t.sessionAccum || 0;
+    // A v7 session already running has no day stamp; derive it from its own
+    // start, or it would keep counting straight through tomorrow.
+    if(!t.sessionDay && t.sessionStart){
+      const d = new Date(t.sessionStart), z = v => String(v).padStart(2,"0");
+      t.sessionDay = d.getFullYear() + "-" + z(d.getMonth()+1) + "-" + z(d.getDate());
+    }
+    t.sessionDay = t.sessionDay || null;
+    return s;
+  }
 };
 
 function freshStore(){
   return {schemaVersion:SCHEMA_VERSION, updatedAt:null, settings:{theme:"auto"},
-          timers:{sessionStart:null, restStart:null}, mesos:{}};
+          timers:{sessionStart:null, sessionAccum:0, sessionDay:null, restStart:null}, mesos:{}};
 }
 
 function migrate(store){
@@ -701,11 +720,13 @@ function save(){
 async function load(){
   STORE = await storage.get();
   STORE.settings = STORE.settings || {theme:"auto"};
-  STORE.timers = STORE.timers || {sessionStart:null, restStart:null};
-  // A stopwatch still running hours later was forgotten, not left resting.
-  const STALE = 6*3600*1000, tNow = Date.now();
-  if(STORE.timers.sessionStart && tNow - STORE.timers.sessionStart > STALE) STORE.timers.sessionStart = null;
-  if(STORE.timers.restStart && tNow - STORE.timers.restStart > STALE) STORE.timers.restStart = null;
+  STORE.timers = STORE.timers || {sessionStart:null, sessionAccum:0, sessionDay:null, restStart:null};
+  // A session belongs to a day, so yesterday's never greets you paused today.
+  if(STORE.timers.sessionDay && STORE.timers.sessionDay !== todayKey()){
+    STORE.timers.sessionStart = null; STORE.timers.sessionAccum = 0; STORE.timers.sessionDay = null;
+  }
+  // A rest clock still running hours later was forgotten, not rested.
+  if(STORE.timers.restStart && Date.now() - STORE.timers.restStart > 6*3600*1000) STORE.timers.restStart = null;
   if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}, order:{}, swaps:{}, feedback:{}};
   LOG = STORE.mesos[MESO_ID];
   LOG.sets = LOG.sets || {};
@@ -1022,11 +1043,52 @@ function setsLeft(){
   return left;
 }
 
+const todayKey = () => {
+  const d = new Date(), p = v => String(v).padStart(2,"0");
+  return d.getFullYear() + "-" + p(d.getMonth()+1) + "-" + p(d.getDate());
+};
+
+/* Session clock: idle -> running -> paused -> running. Tap cycles; a long
+   press zeroes it. Elapsed is banked time plus the current run, so pausing
+   never loses the reading and nothing accumulates tick by tick. */
+const sessionElapsed = () => {
+  const t = STORE.timers;
+  return t.sessionAccum + (t.sessionStart ? Date.now() - t.sessionStart : 0);
+};
+const sessionState = () => {
+  const t = STORE.timers;
+  return t.sessionStart ? "running" : (t.sessionAccum > 0 ? "paused" : "idle");
+};
+
+function sessionPause(){
+  const t = STORE.timers;
+  if(!t.sessionStart) return;
+  t.sessionAccum += Date.now() - t.sessionStart;
+  t.sessionStart = null;
+  save(); tickDash(); syncWakeLock();
+}
+
+function sessionToggle(){
+  const t = STORE.timers;
+  if(t.sessionStart) return sessionPause();
+  t.sessionStart = Date.now();
+  t.sessionDay = todayKey();
+  save(); tickDash(); syncWakeLock();
+}
+
+function sessionZero(){
+  const t = STORE.timers;
+  t.sessionStart = null; t.sessionAccum = 0; t.sessionDay = null;
+  save(); tickDash(); syncWakeLock();
+}
+
 function tickDash(){
-  const t = STORE.timers, now = Date.now();
-  $("sessVal").textContent = t.sessionStart ? fmtClock(now - t.sessionStart) : "0:00";
-  $("restVal").textContent = t.restStart ? fmtClock(now - t.restStart) : "0:00";
-  $("sessBtn").classList.toggle("on", !!t.sessionStart);
+  const t = STORE.timers, st = sessionState();
+  $("sessVal").textContent = st === "idle" ? "0:00" : fmtClock(sessionElapsed());
+  $("restVal").textContent = t.restStart ? fmtClock(Date.now() - t.restStart) : "0:00";
+  $("sessBtn").classList.toggle("on", st === "running");
+  $("sessBtn").classList.toggle("paused", st === "paused");
+  $("sessBtn").querySelector(".dlabel").textContent = st === "paused" ? "Paused" : "Session";
   $("restBtn").classList.toggle("on", !!t.restStart);
 }
 
@@ -1288,11 +1350,13 @@ document.addEventListener("click", e=>{
   if(wb){ W = +wb.dataset.w; activeOverride = null; render(); window.scrollTo(0,0); return; }
   const db = e.target.closest("#daySeg button");
   if(db){ D = db.dataset.d; activeOverride = null; render(); window.scrollTo(0,0); return; }
-  // Stopwatches: tap to start, tap again to stop and zero.
+  // Session: tap cycles start / pause / resume. A long press zeroes it, and
+  // swallows the click the browser fires afterwards.
   if(e.target.closest("#sessBtn")){
-    STORE.timers.sessionStart = STORE.timers.sessionStart ? null : Date.now();
-    save(); tickDash(); return;
+    if(sessLongFired){ sessLongFired = false; return; }
+    sessionToggle(); return;
   }
+  // Rest is binary — you are resting or you are not.
   if(e.target.closest("#restBtn")){
     STORE.timers.restStart = STORE.timers.restStart ? null : Date.now();
     save(); tickDash(); return;
@@ -1317,6 +1381,7 @@ document.addEventListener("click", e=>{
     LOG.sets[k].done = !LOG.sets[k].done;
     activeOverride = null;              // let the marker advance to the next set
     save(); renderDay(); renderDash();
+    if(setsLeft() === 0) sessionPause();  // day done: freeze the total, don't wipe it
     return;
   }
   if(e.target.id==="themeBtn"){
@@ -1350,7 +1415,7 @@ document.addEventListener("input", e=>{
   }
 });
 
-(async ()=>{ await load(); applyTheme(); render(); })();
+(async ()=>{ await load(); applyTheme(); render(); syncWakeLock(); })();
 
 // Offline support. Serves from cache instantly, refreshes in the background;
 // updates apply on the next launch. No-ops under file:// where SW is unsupported.
@@ -1365,14 +1430,37 @@ if("serviceWorker" in navigator){
 let wakeLock = null;
 async function keepAwake(){
   if(!("wakeLock" in navigator) || document.visibilityState !== "visible" || wakeLock) return;
+  if(sessionState() !== "running") return;     // paused or idle: let the phone sleep
   try{
     wakeLock = await navigator.wakeLock.request("screen");
     wakeLock.addEventListener("release", ()=>{ wakeLock = null; });
   }catch(e){ wakeLock = null; }
 }
+async function syncWakeLock(){
+  if(sessionState() === "running") return keepAwake();
+  if(wakeLock){ try{ await wakeLock.release(); }catch(e){} wakeLock = null; }
+}
 document.addEventListener("visibilitychange", keepAwake);
 document.addEventListener("pointerdown", keepAwake);
-keepAwake();
+
+/* Long press the session cell to zero it. Cancelled by lifting or by moving,
+   so a scroll that starts on the dashboard cannot wipe your clock. */
+let sessHold = null, sessLongFired = false, sessHoldAt = null;
+const cancelSessHold = () => { clearTimeout(sessHold); sessHold = null; };
+$("sessBtn").addEventListener("pointerdown", e => {
+  if(!e.isPrimary) return;
+  sessLongFired = false; sessHoldAt = {x:e.clientX, y:e.clientY};
+  sessHold = setTimeout(() => {
+    sessHold = null; sessLongFired = true;
+    sessionZero();
+    if(navigator.vibrate) navigator.vibrate(20);
+  }, 550);
+});
+$("sessBtn").addEventListener("pointermove", e => {
+  if(sessHold && sessHoldAt && Math.hypot(e.clientX-sessHoldAt.x, e.clientY-sessHoldAt.y) > 10) cancelSessHold();
+});
+["pointerup","pointerleave","pointercancel"].forEach(ev =>
+  $("sessBtn").addEventListener(ev, cancelSessHold));
 </script>
 </body>
 </html>
