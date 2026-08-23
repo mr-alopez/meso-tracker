@@ -132,10 +132,12 @@
   .card.drag-ghost{position:fixed;z-index:60;margin:0;box-shadow:0 10px 28px rgba(20,24,29,.28);
     pointer-events:none;border-top-color:var(--signal)}
   .no-select, .no-select *{user-select:none;-webkit-user-select:none}
-  .headbtns{display:flex;align-items:center;gap:6px;flex:none}
-  .swapBtn{appearance:none;border:1px solid var(--line-2);background:transparent;border-radius:2px;
-    width:34px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  .headbtns{display:flex;align-items:center;gap:5px;flex:none}
+  .swapBtn,.vidBtn{appearance:none;border:1px solid var(--line-2);background:transparent;border-radius:2px;
+    width:34px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;
+    text-decoration:none}
   .swapBtn svg{width:14px;height:14px;stroke:var(--ink-3);stroke-width:2;fill:none;stroke-linecap:square}
+  .vidBtn svg{width:13px;height:13px;fill:var(--ink-3)}
   .card.swapped .swapBtn{border-color:var(--signal)}
   .card.swapped .swapBtn svg{stroke:var(--signal)}
 
@@ -952,6 +954,10 @@ function renderDay(){
           <div class="exname">${ex.name}</div>
         </div>
         <div class="headbtns">
+          <a class="vidBtn" href="https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + " form")}"
+             target="_blank" rel="noopener noreferrer" aria-label="Search YouTube for ${ex.name} form">
+            <svg viewBox="0 0 24 24"><polygon points="8,5 19,12 8,19"/></svg>
+          </a>
           <button class="swapBtn" data-e="${ei}" aria-label="Swap ${ex.name} for another ${LIBRARY.slots[ex.slot].label.toLowerCase()} exercise">
             <svg viewBox="0 0 24 24"><path d="M4 7h13M14 3l4 4-4 4M20 17H7M10 13l-4 4 4 4"/></svg>
           </button>
@@ -1258,7 +1264,7 @@ document.addEventListener("click", e=>{
 });
 
 $("days").addEventListener("pointerdown", e=>{
-  if(!e.isPrimary || e.target.closest(".swapBtn") || !e.target.closest(".exhead")) return;
+  if(!e.isPrimary || e.target.closest(".swapBtn,.vidBtn") || !e.target.closest(".exhead")) return;
   drag = {card: e.target.closest(".card"), pid: e.pointerId,
           startX: e.clientX, startY: e.clientY, started: false,
           timer: setTimeout(beginDrag, HOLD_MS)};
