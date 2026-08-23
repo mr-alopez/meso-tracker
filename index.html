@@ -29,6 +29,7 @@
     --field-logged:#eef1f2;
     --placeholder:#a8b1b8;
     --active-bg:#e7eef5;
+    --video:#c4302b;
     --mono:ui-monospace,"SF Mono",Menlo,"Roboto Mono","Courier New",monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   }
@@ -57,6 +58,7 @@
       --field-logged:#262f38;
       --placeholder:#6d7985;
       --active-bg:#2c3742;
+      --video:#ff5f5f;
     }
   }
   :root[data-theme="dark"]{
@@ -78,6 +80,7 @@
     --field-logged:#262f38;
     --placeholder:#6d7985;
     --active-bg:#2c3742;
+    --video:#ff5f5f;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.4}
@@ -102,16 +105,17 @@
   .daymeta{font-size:12px;color:var(--ink-3);padding:0 0 8px;font-family:var(--mono)}
 
   /* ---- sticky dashboard: session · rest · sets left ---- */
-  /* Session gets the wider column: it is the only cell that reaches h:mm:ss. */
-  .dash{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:1.25fr 1fr auto;
+  /* Both stopwatches share one column width; the tighter horizontal padding
+     is what keeps a h:mm:ss session from crowding its cell. */
+  .dash{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:1fr 1fr auto;
     gap:1px;background:var(--line-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
   .dcell{appearance:none;border:none;background:var(--paper);color:var(--ink);font-family:var(--mono);
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-    padding:9px 6px;min-height:68px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+    padding:9px 4px;min-height:68px;cursor:pointer;-webkit-tap-highlight-color:transparent}
   .dcell.count{cursor:default}
   .dlabel{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);
     white-space:nowrap}
-  .dval{font-size:31px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+  .dval{font-size:30px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
   .dcell.on .dval, .dcell.on .dlabel{color:var(--signal)}
   .dcell.count .dval{color:var(--logged)}
   .dcell.count.zero .dval{color:var(--ink-3)}
@@ -137,7 +141,7 @@
     width:34px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;
     text-decoration:none}
   .swapBtn svg{width:14px;height:14px;stroke:var(--ink-3);stroke-width:2;fill:none;stroke-linecap:square}
-  .vidBtn svg{width:13px;height:13px;fill:var(--ink-3)}
+  .vidBtn svg{width:13px;height:13px;fill:var(--video)}
   .card.swapped .swapBtn{border-color:var(--signal)}
   .card.swapped .swapBtn svg{stroke:var(--signal)}
 
@@ -1353,6 +1357,22 @@ document.addEventListener("input", e=>{
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("sw.js").catch(()=>{});
 }
+
+/* Keep the screen awake while the app is in front. The lock is released by
+   the browser whenever the page hides, so it is re-taken on return; some
+   browsers also want a user gesture, hence the retry on interaction.
+   Unsupported browsers (Safari before 16.4) no-op rather than throw. */
+let wakeLock = null;
+async function keepAwake(){
+  if(!("wakeLock" in navigator) || document.visibilityState !== "visible" || wakeLock) return;
+  try{
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", ()=>{ wakeLock = null; });
+  }catch(e){ wakeLock = null; }
+}
+document.addEventListener("visibilitychange", keepAwake);
+document.addEventListener("pointerdown", keepAwake);
+keepAwake();
 </script>
 </body>
 </html>
