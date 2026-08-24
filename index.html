@@ -1382,10 +1382,17 @@ document.addEventListener("click", e=>{
   if(chk){
     const k = cell(W,D,exList()[chk.dataset.e].id,chk.dataset.s);
     LOG.sets[k] = LOG.sets[k] || {};
-    LOG.sets[k].done = !LOG.sets[k].done;
+    const nowDone = !LOG.sets[k].done;
+    LOG.sets[k].done = nowDone;
     activeOverride = null;              // let the marker advance to the next set
+    // Finishing a set is the moment rest begins, so it restarts from zero.
+    // Unchecking is a correction, not a set, and starts nothing.
+    if(nowDone) STORE.timers.restStart = Date.now();
     save(); renderDay(); renderDash();
-    if(setsLeft() === 0) sessionPause();  // day done: freeze the total, don't wipe it
+    if(setsLeft() === 0){                 // day done: freeze the total, stop resting
+      STORE.timers.restStart = null;
+      sessionPause();                     // saves and repaints the dashboard
+    }
     return;
   }
   if(e.target.id==="themeBtn"){
