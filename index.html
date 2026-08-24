@@ -208,6 +208,21 @@
   .chk[aria-pressed="true"] svg{stroke:#fff}
   .row.logged input{color:var(--ink-2);background:var(--field-logged)}
 
+  /* Warm-up sets: amber, since amber already means sub-maximal here (deload,
+     paused). Quieter than the working rows and carrying no checkbox, because a
+     warm-up is a record rather than a task. */
+  .warmbar{display:flex;gap:1px;background:var(--line-2);margin:2px 0 0}
+  .wtoggle{flex:1;appearance:none;border:none;border-left:3px solid var(--deload);
+    background:var(--banner-bg);color:var(--deload);font-family:var(--mono);font-size:11px;
+    font-weight:700;letter-spacing:.12em;text-transform:uppercase;text-align:left;
+    padding:10px;cursor:pointer}
+  .wplus{appearance:none;border:none;background:var(--banner-bg);color:var(--deload);
+    font-family:var(--mono);font-size:20px;font-weight:700;line-height:1;width:46px;
+    cursor:pointer;padding:0}
+  .row.warm{border-top:none}
+  .row.warm .setno{color:var(--deload)}
+  .row.warm input[type=number]{border-color:var(--line-2)}
+
   .note{width:100%;border:none;border-top:1px solid var(--line-2);background:transparent;padding:9px 2px;
     font-family:var(--sans);font-size:14px;color:var(--ink-2);resize:none;margin-top:6px}
   .note:focus{outline:none;color:var(--ink)}
@@ -560,6 +575,9 @@ function resolveEx(p, dayKey){
    sessionAccum + (sessionStart ? now - sessionStart : 0): banked time plus the
    current run. sessionStart null with sessionAccum > 0 means paused.
    sets:  "week|day|exercise id|setIdx" -> {weight, reps, done}  (weight/reps: number or null)
+   warmups: "week|day|exercise id|idx" -> {weight, reps}. Deliberately a
+   separate map: suggestLoad reads sets only, and a ramp recorded as working
+   sets is exactly what the spec's MIXED rule exists to reject.
    notes: "week|day|exercise id" -> string
    order: dayKey -> [program exercise ids], drag-to-reorder override of PROGRAM order
    swaps: dayKey -> { programExId: replacementExId }, same-slot substitutions.
@@ -573,7 +591,7 @@ function resolveEx(p, dayKey){
    renames, reorders and swaps never mislabel old logs.
    Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
 const STORE_KEY = "meso-tracker";
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 const MESO_ID = "meso01";
 
 /* v3 -> v4: exact display-name -> library-id table for every exercise that has
@@ -661,7 +679,10 @@ const MIGRATIONS = {
     }
     t.sessionDay = t.sessionDay || null;
     return s;
-  }
+  },
+  // v9 added warm-up sets in their own map, so they never reach the
+  // progression engine, the set counter or the active-set marker.
+  8: s => { Object.values(s.mesos).forEach(m => { m.warmups = m.warmups || {}; }); return s; }
 };
 
 function freshStore(){
@@ -731,13 +752,14 @@ async function load(){
   }
   // A rest clock still running hours later was forgotten, not rested.
   if(STORE.timers.restStart && Date.now() - STORE.timers.restStart > 6*3600*1000) STORE.timers.restStart = null;
-  if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}, order:{}, swaps:{}, feedback:{}};
+  if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}, order:{}, swaps:{}, feedback:{}, warmups:{}};
   LOG = STORE.mesos[MESO_ID];
   LOG.sets = LOG.sets || {};
   LOG.notes = LOG.notes || {};
   LOG.order = LOG.order || {};
   LOG.swaps = LOG.swaps || {};
   LOG.feedback = LOG.feedback || {};
+  LOG.warmups = LOG.warmups || {};
 }
 
 /* ---- load progression rule engine ----
@@ -946,6 +968,56 @@ function renderHeader(){
   $("bannerSlot").innerHTML = weekObj().note ? `<div class="banner">${weekObj().note}</div>` : "";
 }
 
+/* ---- warm-up sets ----
+   Kept out of LOG.sets on purpose. suggestLoad, setsLeft and activeKey all
+   read working sets only, so warm-ups cannot skew a suggestion, the count of
+   sets remaining, or where the active marker sits. Open state and row count
+   live in memory: they are view state, not training data. */
+const warmKey = (w,d,exId,i) => `${w}|${d}|${exId}|${i}`;
+const warmUi = ex => `${W}|${D}|${ex.id}`;
+const warmOpenState = new Map();   // ui key -> bool; absent means "open if there is data"
+const warmShown = new Map();       // ui key -> how many rows to draw
+
+function warmCount(ex){
+  let n = 0;
+  for(let i = 0; i < 20; i++) if(LOG.warmups[warmKey(W,D,ex.id,i)]) n = i + 1;
+  return n;
+}
+function warmIsOpen(ex){
+  const k = warmUi(ex);
+  return warmOpenState.has(k) ? warmOpenState.get(k) : warmCount(ex) > 0;
+}
+function warmRowCount(ex){
+  return Math.max(warmCount(ex), warmShown.get(warmUi(ex)) || 1);
+}
+
+function warmSection(ex, ei){
+  const open = warmIsOpen(ex), n = warmCount(ex);
+  const bar = `<div class="warmbar">
+        <button class="wtoggle" data-warm="${ei}" aria-expanded="${open}">Warm up${n ? ` · ${n}` : ""}</button>
+        ${open ? `<button class="wplus" data-warmadd="${ei}" aria-label="Add a warm-up set">+</button>` : ""}
+      </div>`;
+  if(!open) return bar;
+  const rows = Array.from({length: warmRowCount(ex)}, (_, i) => {
+    const c = LOG.warmups[warmKey(W,D,ex.id,i)] || {};
+    return `<div class="row warm">
+        <div class="setno">W${i+1}</div>
+        <div class="fieldwrap">
+          <input type="number" inputmode="decimal" step="0.5" data-wf="w" data-e="${ei}" data-i="${i}"
+            value="${c.weight ?? ""}">
+          <span class="ghost"></span>
+        </div>
+        <div class="fieldwrap">
+          <input type="number" inputmode="numeric" data-wf="r" data-e="${ei}" data-i="${i}"
+            value="${c.reps ?? ""}">
+          <span class="ghost"></span>
+        </div>
+        <div></div>
+      </div>`;
+  }).join("");
+  return bar + rows;
+}
+
 function renderDay(){
   $("days").innerHTML = exList().map((ex,ei)=>{
     const n = ex.sets[W-1];
@@ -1001,6 +1073,7 @@ function renderDay(){
       ${ex.cue?`<div class="cue">${ex.cue}</div>`:""}
       <div class="suggest ${/^(DELOAD|PAIN)/.test(sug.outcome)?"warn":""}">${sug.text}</div>
       <div class="hdr"><div></div><div>Weight</div><div>Reps</div><div></div></div>
+      ${warmSection(ex, ei)}
       ${rows}
       <div class="fbrow">
         <span class="fbl">felt</span>
@@ -1378,6 +1451,18 @@ document.addEventListener("click", e=>{
     save(); renderDay();
     return;
   }
+  const wt = e.target.closest(".wtoggle");
+  if(wt){
+    const ex = exList()[wt.dataset.warm];
+    warmOpenState.set(warmUi(ex), !warmIsOpen(ex));
+    renderDay(); return;
+  }
+  const wp = e.target.closest(".wplus");
+  if(wp){
+    const ex = exList()[wp.dataset.warmadd];
+    warmShown.set(warmUi(ex), warmRowCount(ex) + 1);
+    renderDay(); return;
+  }
   const chk = e.target.closest(".chk");
   if(chk){
     const k = cell(W,D,exList()[chk.dataset.e].id,chk.dataset.s);
@@ -1405,13 +1490,26 @@ document.addEventListener("click", e=>{
   if(e.target.id==="importBtn"){ $("importFile").click(); return; }
   if(e.target.id==="resetBtn"){
     if(confirm("Clear every logged weight, rep and note in this meso? The program itself stays.")){
-      LOG.sets = {}; LOG.notes = {}; save(); render();
+      LOG.sets = {}; LOG.notes = {}; LOG.warmups = {}; save(); render();
     }
   }
 });
 
 document.addEventListener("input", e=>{
   const inp = e.target;
+  if(inp.dataset.wf){
+    const k = warmKey(W, D, exList()[inp.dataset.e].id, inp.dataset.i);
+    const rec = LOG.warmups[k] || {};
+    rec[inp.dataset.wf === "w" ? "weight" : "reps"] = inp.value === "" ? null : Number(inp.value);
+    if(rec.weight == null && rec.reps == null) delete LOG.warmups[k];   // emptied means gone
+    else LOG.warmups[k] = rec;
+    // Repaint just the bar count: a full re-render here would steal focus mid-entry.
+    const bar = inp.closest(".card").querySelector(".wtoggle");
+    const wc = warmCount(exList()[inp.dataset.e]);
+    if(bar) bar.textContent = "Warm up" + (wc ? " · " + wc : "");
+    save();
+    return;
+  }
   if(inp.dataset.f){
     const k = cell(W,D,exList()[inp.dataset.e].id,inp.dataset.s);
     LOG.sets[k] = LOG.sets[k] || {};
