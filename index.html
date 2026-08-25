@@ -123,7 +123,7 @@
   .dcell.paused .dval, .dcell.paused .dlabel{color:var(--deload)}
   #restBtn.on .dval, #restBtn.on .dlabel{color:var(--rest)}
   .dcell.count .dval{color:var(--logged)}
-  .dcell.count.zero .dval{color:var(--ink-3)}
+  .dcell.count.done .dlabel{color:var(--logged)}
 
   /* ---- deload banner ---- */
   .banner{margin:12px 14px 0;padding:10px 12px;border-left:3px solid var(--deload);background:var(--banner-bg);
@@ -569,7 +569,8 @@ function resolveEx(p, dayKey){
 /* ---- storage ----
    Everything lives under one localStorage key as a versioned envelope:
    { schemaVersion, updatedAt, settings, timers, mesos: { <mesoId>: { sets, notes, order, swaps } } }
-   settings: { theme: "auto" | "light" | "dark" }
+   settings: { theme: "auto" | "light" | "dark", week, day } — week and day
+   are where you left off, so a launch resumes instead of resetting to week 1.
    timers:   { sessionStart, sessionAccum, sessionDay, restStart } — UI state,
    not training data. The session clock pauses, so elapsed is
    sessionAccum + (sessionStart ? now - sessionStart : 0): banked time plus the
@@ -591,7 +592,7 @@ function resolveEx(p, dayKey){
    renames, reorders and swaps never mislabel old logs.
    Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
 const STORE_KEY = "meso-tracker";
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 const MESO_ID = "meso01";
 
 /* v3 -> v4: exact display-name -> library-id table for every exercise that has
@@ -682,7 +683,14 @@ const MIGRATIONS = {
   },
   // v9 added warm-up sets in their own map, so they never reach the
   // progression engine, the set counter or the active-set marker.
-  8: s => { Object.values(s.mesos).forEach(m => { m.warmups = m.warmups || {}; }); return s; }
+  8: s => { Object.values(s.mesos).forEach(m => { m.warmups = m.warmups || {}; }); return s; },
+  // v10 remembers the week and day you were last on.
+  9: s => {
+    s.settings = s.settings || {};
+    if(s.settings.week === undefined) s.settings.week = 1;
+    if(s.settings.day === undefined) s.settings.day = "mon";
+    return s;
+  }
 };
 
 function freshStore(){
@@ -745,6 +753,12 @@ function save(){
 async function load(){
   STORE = await storage.get();
   STORE.settings = STORE.settings || {theme:"auto"};
+  // Resume where we left off, refusing anything the PROGRAM no longer contains.
+  const dayKeys = PROGRAM.days.map(d => d.key);
+  const savedW = Number(STORE.settings.week);
+  W = (savedW >= 1 && savedW <= PROGRAM.weeks.length) ? savedW : 1;
+  D = dayKeys.includes(STORE.settings.day) ? STORE.settings.day : dayKeys[0];
+
   STORE.timers = STORE.timers || {sessionStart:null, sessionAccum:0, sessionDay:null, restStart:null};
   // A session belongs to a day, so yesterday's never greets you paused today.
   if(STORE.timers.sessionDay && STORE.timers.sessionDay !== todayKey()){
@@ -956,6 +970,44 @@ function suggestFor(ex){
     startLoad: ex.start,
     rir: weekObj().rir
   });
+}
+
+/* ---- where to open ----
+   A day is done when every working set on it is checked off; warm-ups are not
+   sets and never count. On launch we step forward from wherever we left off,
+   past days already finished, and stop at the first one with work left. We
+   only ever move forward: a finished week 1 should not drag you back to it,
+   and nothing left to do means stay put rather than wrap around.
+
+   The advance happens at load rather than the moment the last set is checked,
+   so finishing a session never yanks the screen away while you are still
+   looking at what you just did. */
+function dayComplete(w, dayKey){
+  const day = PROGRAM.days.find(x => x.key === dayKey);
+  if(!day) return false;
+  return day.ex.every(p => {
+    const ex = resolveEx(p, dayKey);
+    for(let si = 0; si < ex.sets[w-1]; si++)
+      if(!LOG.sets[cell(w, dayKey, ex.id, si)]?.done) return false;
+    return true;
+  });
+}
+
+function openAtNextUnfinished(){
+  const keys = PROGRAM.days.map(d => d.key);
+  let w = W, i = keys.indexOf(D);
+  if(i < 0) return;
+  while(w <= PROGRAM.weeks.length){
+    if(!dayComplete(w, keys[i])){ W = w; D = keys[i]; return; }
+    if(++i >= keys.length){ i = 0; w++; }
+  }
+  // every day from here on is finished — leave the saved position alone
+}
+
+function rememberPlace(){
+  STORE.settings.week = W;
+  STORE.settings.day = D;
+  save();
 }
 
 function renderHeader(){
@@ -1172,7 +1224,8 @@ function tickDash(){
 function renderDash(){
   const n = setsLeft();
   $("setsLeft").textContent = n;
-  $("setsCell").classList.toggle("zero", n === 0);
+  $("setsCell").classList.toggle("done", n === 0);
+  $("setsCell").querySelector(".dlabel").textContent = n === 0 ? "Day done" : "Sets left";
   tickDash();
 }
 
@@ -1424,9 +1477,9 @@ $("days").addEventListener("contextmenu", e=>{
 
 document.addEventListener("click", e=>{
   const wb = e.target.closest("#weekSeg button");
-  if(wb){ W = +wb.dataset.w; activeOverride = null; render(); window.scrollTo(0,0); return; }
+  if(wb){ W = +wb.dataset.w; activeOverride = null; rememberPlace(); render(); window.scrollTo(0,0); return; }
   const db = e.target.closest("#daySeg button");
-  if(db){ D = db.dataset.d; activeOverride = null; render(); window.scrollTo(0,0); return; }
+  if(db){ D = db.dataset.d; activeOverride = null; rememberPlace(); render(); window.scrollTo(0,0); return; }
   // Session: tap cycles start / pause / resume. A long press zeroes it, and
   // swallows the click the browser fires afterwards.
   if(e.target.closest("#sessBtn")){
@@ -1524,7 +1577,7 @@ document.addEventListener("input", e=>{
   }
 });
 
-(async ()=>{ await load(); applyTheme(); render(); syncWakeLock(); })();
+(async ()=>{ await load(); applyTheme(); openAtNextUnfinished(); render(); syncWakeLock(); })();
 
 // Offline support. Serves from cache instantly, refreshes in the background;
 // updates apply on the next launch. No-ops under file:// where SW is unsupported.
