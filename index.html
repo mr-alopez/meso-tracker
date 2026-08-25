@@ -86,6 +86,14 @@
     --rest:#b49ae8;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  /* A soft catch at each exercise rather than a rail. "proximity" engages only
+     when a scroll comes to rest near a card, so a deliberate fling still
+     travels freely - and a card taller than the screen never traps you
+     mid-content, which "mandatory" would do on a Friday card with warm-ups
+     open. scroll-margin-top clears the sticky dashboard: snap points align to
+     the top of the viewport, so without it every card would land underneath
+     the bar and lose its name. */
+  html{scroll-snap-type:y proximity}
   body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.4}
   .wrap{max-width:560px;margin:0 auto;padding:0 0 96px}
 
@@ -131,7 +139,8 @@
 
   /* ---- exercise card ---- */
   .card{background:var(--card);border:1px solid var(--line-2);border-top:2px solid var(--ink);
-    margin:14px 14px 0;padding:12px 12px 4px}
+    margin:14px 14px 0;padding:12px 12px 4px;
+    scroll-snap-align:start;scroll-margin-top:78px}
   .card.done{border-top-color:var(--logged)}
   .exhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;cursor:grab;
     user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
