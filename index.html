@@ -166,6 +166,11 @@
      under the finger - so the insert-after search ran to the last card and the
      exercise shot to the bottom. */
   .wrap.dragging{scroll-snap-type:none}
+  /* Same while typing. The browser scrolls the focused field into view and
+     mandatory snapping then re-snaps to the nearest card, tugging the field
+     back under the bar or off the bottom - which is the field being "a hair
+     cut off" once the keyboard is up. */
+  .wrap.typing{scroll-snap-type:none}
   .headbtns{display:flex;align-items:center;gap:5px;flex:none}
   .swapBtn,.vidBtn{appearance:none;border:1px solid var(--line-2);background:transparent;border-radius:2px;
     width:34px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;
@@ -227,7 +232,8 @@
      Mono stays on the clocks, where digits change in place and would jitter. */
   input[type=number]{width:100%;appearance:none;-moz-appearance:textfield;border:1px solid var(--line);
     background:var(--field);border-radius:2px;padding:11px 8px 11px;font-family:var(--sans);font-size:19px;
-    font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink);text-align:center}
+    font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink);text-align:center;
+    scroll-margin-top:86px;scroll-margin-bottom:24px}
   /* The start/last hint was never styled, so it inherited a dim browser grey.
      It stays clearly dimmer than a typed value: a hint must never be mistaken
      for a logged number. Brighter on the active row, which is the one you read. */
@@ -1294,6 +1300,16 @@ function paintActive(){
 document.addEventListener("focusin", e => {
   const row = e.target.closest && e.target.closest(".row");
   if(row && row.dataset.r){ activeOverride = row.dataset.r; paintActive(); }
+  if(e.target.matches && e.target.matches("input,textarea")) scroller().classList.add("typing");
+});
+document.addEventListener("focusout", e => {
+  if(!(e.target.matches && e.target.matches("input,textarea"))) return;
+  // Deferred: moving between two fields fires focusout before the next focusin,
+  // and dropping the class in between would let a snap fire mid-hop.
+  setTimeout(() => {
+    const a = document.activeElement;
+    if(!a || !a.matches || !a.matches("input,textarea")) scroller().classList.remove("typing");
+  }, 0);
 });
 
 function render(){ renderHeader(); renderDay(); renderVolume(); renderDash(); }
@@ -1401,7 +1417,14 @@ function placeSrc(y){
     const r = c.getBoundingClientRect();
     if(y > r.top + r.height/2) after = c;
   }
+  // Only touch the DOM when the slot actually changes, so the buzz below marks
+  // a real swap rather than firing every animation frame.
+  const target = after ? after.nextElementSibling : wrap.firstElementChild;
+  if(target === drag.card) return;
   if(after) after.after(drag.card); else wrap.prepend(drag.card);
+  // One tick per position crossed: you can feel how far you have travelled
+  // without having to read the screen mid-drag.
+  if(navigator.vibrate) navigator.vibrate(12);
 }
 
 function beginDrag(){
