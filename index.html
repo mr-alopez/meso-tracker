@@ -161,6 +161,11 @@
   .card.drag-ghost{position:fixed;z-index:60;margin:0;box-shadow:0 10px 28px rgba(20,24,29,.28);
     pointer-events:none;border-top-color:var(--signal)}
   .no-select, .no-select *{user-select:none;-webkit-user-select:none}
+  /* Snapping off while dragging. Reordering the DOM makes a mandatory-snap
+     container re-snap, which shifts the scroll, which changes which cards sit
+     under the finger - so the insert-after search ran to the last card and the
+     exercise shot to the bottom. */
+  .wrap.dragging{scroll-snap-type:none}
   .headbtns{display:flex;align-items:center;gap:5px;flex:none}
   .swapBtn,.vidBtn{appearance:none;border:1px solid var(--line-2);background:transparent;border-radius:2px;
     width:34px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;
@@ -1409,6 +1414,7 @@ function beginDrag(){
   document.body.appendChild(g);
   drag.ghost = g;
   drag.card.classList.add("drag-src");
+  scroller().classList.add("dragging");
   document.body.classList.add("no-select");
   drag.started = true;
   drag.lastY = drag.startY;
@@ -1445,6 +1451,7 @@ function endDrag(commit){
   cancelAnimationFrame(drag.raf);
   if(drag.ghost) drag.ghost.remove();
   drag.card.classList.remove("drag-src");
+  scroller().classList.remove("dragging");
   document.body.classList.remove("no-select");
   document.removeEventListener("pointermove", dragMove);
   document.removeEventListener("pointerup", dragUp);
