@@ -157,9 +157,17 @@
     user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
   .grip{flex:none;padding:5px 2px 5px 12px}
   .grip svg{width:10px;height:16px;fill:var(--line);display:block}
-  .card.drag-src{opacity:.35}
-  .card.drag-ghost{position:fixed;z-index:60;margin:0;box-shadow:0 10px 28px rgba(20,24,29,.28);
-    pointer-events:none;border-top-color:var(--signal)}
+  /* The slot the card came from, as a slim dashed gap rather than a faded
+     full-height card. At 600-750px tall a faded card is invisible: the gap has
+     to be short enough that the neighbours around it stay on screen. */
+  .card.drag-src{height:56px;min-height:0;padding:0;overflow:hidden;opacity:1;
+    background:transparent;border:2px dashed var(--signal)}
+  .card.drag-src > *{visibility:hidden}
+  /* What follows the finger is a compact chip, not a clone of a screen-sized
+     card - a full clone covers the very gap it is meant to reveal. */
+  .drag-ghost{position:fixed;z-index:60;margin:0;pointer-events:none;
+    background:var(--card);border:1px solid var(--line-2);border-top:2px solid var(--signal);
+    border-radius:2px;padding:9px 12px;box-shadow:0 10px 28px rgba(8,11,14,.45)}
   .no-select, .no-select *{user-select:none;-webkit-user-select:none}
   /* Snapping off while dragging. Reordering the DOM makes a mandatory-snap
      container re-snap, which shifts the scroll, which changes which cards sit
@@ -1430,11 +1438,17 @@ function placeSrc(y){
 function beginDrag(){
   if(!drag) return;
   const r = drag.card.getBoundingClientRect();
-  drag.grabDY = drag.startY - r.top;
-  const g = drag.card.cloneNode(true);
-  g.classList.add("drag-ghost");
+  const g = document.createElement("div");
+  g.className = "drag-ghost";
+  const line = (cls, txt) => { const d = document.createElement("div"); d.className = cls; d.textContent = txt; return d; };
+  g.appendChild(line("tag", drag.card.querySelector(".tag").textContent));
+  g.appendChild(line("exname", drag.card.querySelector(".exname").textContent));
   g.style.width = r.width+"px"; g.style.left = r.left+"px"; g.style.top = r.top+"px";
   document.body.appendChild(g);
+  // Hang the chip from the middle so it sits under the finger rather than
+  // wherever on a tall card the grab happened to land.
+  drag.grabDY = g.getBoundingClientRect().height/2;
+  g.style.top = (drag.startY - drag.grabDY)+"px";
   drag.ghost = g;
   drag.card.classList.add("drag-src");
   scroller().classList.add("dragging");
