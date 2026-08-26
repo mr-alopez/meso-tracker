@@ -97,7 +97,9 @@
      dashboard: snap points align to the top of the viewport, so without it a
      card lands behind the bar and loses its name. */
   html{scroll-snap-type:y mandatory}
-  header{scroll-snap-align:start}
+  /* snap-stop as well, or a flick upward sails past the top and you can never
+     come to rest on the week and day selector. */
+  header{scroll-snap-align:start;scroll-snap-stop:always}
   body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.4}
   .wrap{max-width:560px;margin:0 auto;padding:0 0 96px}
 
