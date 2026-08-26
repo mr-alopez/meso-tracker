@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content">
 <title>Meso 01</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -96,12 +96,17 @@
      selector onto the first card. scroll-margin-top clears the sticky
      dashboard: snap points align to the top of the viewport, so without it a
      card lands behind the bar and loses its name. */
-  html{scroll-snap-type:y mandatory}
   /* snap-stop as well, or a flick upward sails past the top and you can never
      come to rest on the week and day selector. */
   header{scroll-snap-align:start;scroll-snap-stop:always}
+  html,body{height:100%;overflow:hidden}
   body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.4}
-  .wrap{max-width:560px;margin:0 auto;padding:0 0 96px}
+  /* The page scrolls inside .wrap, not the document. Snapping - and
+     scroll-snap-stop especially - is far more reliable in a real scroll
+     container than on the root scroller in Chrome Android, which was letting
+     flicks sail past cards the spec says they should stop at. */
+  .wrap{max-width:560px;margin:0 auto;height:100dvh;overflow-y:auto;
+    overscroll-behavior-y:contain;scroll-snap-type:y mandatory}
 
   /* ---- header: compact, scrolls away. The dashboard below it is what sticks. ---- */
   header{background:var(--paper);padding:8px 14px 0}
@@ -267,6 +272,11 @@
   .fbpain[aria-pressed="true"]{background:var(--deload);border-color:var(--deload);color:#fff}
 
   /* ---- volume sheet ---- */
+  /* The tail of the page needs snap points too: under mandatory snapping a
+     resting position must BE one, so without these the scroll springs back
+     to the last card and the volume table and footer - export, import,
+     reset - can never be reached. */
+  .vol,.foot{scroll-snap-align:start;scroll-snap-stop:always;scroll-margin-top:78px}
   .vol{margin:18px 14px 0;border-top:1px solid var(--line)}
   .vol summary{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
     color:var(--ink-2);padding:12px 0;cursor:pointer;list-style:none}
@@ -277,7 +287,7 @@
   .voltbl div{padding:3px 0;border-bottom:1px solid var(--line-2)}
   .voltbl .h{color:var(--ink-3);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
   .bar{height:6px;background:var(--signal);display:inline-block;vertical-align:middle}
-  .foot{padding:22px 14px 0;font-size:12px;color:var(--ink-3);line-height:1.5}
+  .foot{padding:22px 14px 96px;font-size:12px;color:var(--ink-3);line-height:1.5}
   .foot button{background:none;border:none;color:var(--ink-3);font-size:12px;text-decoration:underline;padding:0;cursor:pointer;font-family:var(--sans)}
   .saving{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);
     font-family:var(--mono);font-size:11px;letter-spacing:.08em;padding:7px 14px;border-radius:2px;opacity:0;
@@ -1367,6 +1377,7 @@ $("importFile").addEventListener("change", async e=>{
    (non-passive) so the browser never hijacks the drag as a scroll. A fixed-
    position clone follows the finger while the real card re-slots live. */
 const HOLD_MS = 350, DRAG_SLOP = 12, EDGE = 70, EDGE_SPEED = 8;
+const scroller = () => document.querySelector(".wrap");
 let drag = null;
 
 function commitOrder(){
@@ -1408,8 +1419,8 @@ function beginDrag(){
 function dragTick(){
   if(!drag || !drag.started) return;
   const y = drag.lastY;
-  if(y < EDGE) window.scrollBy(0, -EDGE_SPEED);
-  else if(y > innerHeight - EDGE) window.scrollBy(0, EDGE_SPEED);
+  if(y < EDGE) scroller().scrollBy(0, -EDGE_SPEED);
+  else if(y > innerHeight - EDGE) scroller().scrollBy(0, EDGE_SPEED);
   placeSrc(y);
   drag.raf = requestAnimationFrame(dragTick);
 }
@@ -1502,9 +1513,9 @@ $("days").addEventListener("contextmenu", e=>{
 
 document.addEventListener("click", e=>{
   const wb = e.target.closest("#weekSeg button");
-  if(wb){ W = +wb.dataset.w; activeOverride = null; rememberPlace(); render(); window.scrollTo(0,0); return; }
+  if(wb){ W = +wb.dataset.w; activeOverride = null; rememberPlace(); render(); scroller().scrollTo(0,0); return; }
   const db = e.target.closest("#daySeg button");
-  if(db){ D = db.dataset.d; activeOverride = null; rememberPlace(); render(); window.scrollTo(0,0); return; }
+  if(db){ D = db.dataset.d; activeOverride = null; rememberPlace(); render(); scroller().scrollTo(0,0); return; }
   // Session: tap cycles start / pause / resume. A long press zeroes it, and
   // swallows the click the browser fires afterwards.
   if(e.target.closest("#sessBtn")){
