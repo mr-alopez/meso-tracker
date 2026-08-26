@@ -1417,23 +1417,31 @@ function commitOrder(){
   }
 }
 
+/* Move at most one place per call, and only past an immediate neighbour's
+   midpoint. Scanning every card for an absolute answer meant any layout shift
+   - a collapsing slot, a clamped scroll - could re-slot the card several
+   positions at once, which is what made an upward drag lurch downward first
+   and buzz repeatedly while it settled. Neighbour-relative steps cannot
+   cascade, and they cannot oscillate either: after a swap the card sits in the
+   space the neighbour vacated, which is past that neighbour's new midpoint. */
 function placeSrc(y){
-  const wrap = $("days");
-  let after = null;
-  for(const c of wrap.querySelectorAll(".card")){
-    if(c === drag.card) continue;
-    const r = c.getBoundingClientRect();
-    if(y > r.top + r.height/2) after = c;
+  const cards = [...$("days").children].filter(c => c.classList.contains("card"));
+  const i = cards.indexOf(drag.card);
+  if(i < 0) return;
+  const prev = cards[i-1], next = cards[i+1];
+  if(prev){
+    const r = prev.getBoundingClientRect();
+    if(y < r.top + r.height/2){ prev.before(drag.card); dragStep(); return; }
   }
-  // Only touch the DOM when the slot actually changes, so the buzz below marks
-  // a real swap rather than firing every animation frame.
-  const target = after ? after.nextElementSibling : wrap.firstElementChild;
-  if(target === drag.card) return;
-  if(after) after.after(drag.card); else wrap.prepend(drag.card);
-  // One tick per position crossed: you can feel how far you have travelled
-  // without having to read the screen mid-drag.
-  if(navigator.vibrate) navigator.vibrate(12);
+  if(next){
+    const r = next.getBoundingClientRect();
+    if(y > r.top + r.height/2){ next.after(drag.card); dragStep(); return; }
+  }
 }
+
+// One short blip per position crossed. Paced by the finger now, not by the
+// animation frame, so a slow drag ticks once per card rather than rattling.
+function dragStep(){ if(navigator.vibrate) navigator.vibrate(10); }
 
 function beginDrag(){
   if(!drag) return;
@@ -1450,6 +1458,11 @@ function beginDrag(){
   drag.grabDY = g.getBoundingClientRect().height/2;
   g.style.top = (drag.startY - drag.grabDY)+"px";
   drag.ghost = g;
+  // Freeze the list's height for the drag. Collapsing a 600px card to a 56px
+  // slot removes enough content that a scrolled container clamps its scroll
+  // position, and everything lurches under the finger.
+  const days = $("days");
+  days.style.minHeight = days.getBoundingClientRect().height + "px";
   drag.card.classList.add("drag-src");
   scroller().classList.add("dragging");
   document.body.classList.add("no-select");
@@ -1462,9 +1475,13 @@ function beginDrag(){
 function dragTick(){
   if(!drag || !drag.started) return;
   const y = drag.lastY;
-  if(y < EDGE) scroller().scrollBy(0, -EDGE_SPEED);
-  else if(y > innerHeight - EDGE) scroller().scrollBy(0, EDGE_SPEED);
-  placeSrc(y);
+  // Re-slot from the frame loop only while the edge is actually scrolling the
+  // list past a stationary finger. Otherwise the finger drives it, which is
+  // what keeps one buzz meaning one card.
+  let scrolling = false;
+  if(y < EDGE){ scroller().scrollBy(0, -EDGE_SPEED); scrolling = true; }
+  else if(y > innerHeight - EDGE){ scroller().scrollBy(0, EDGE_SPEED); scrolling = true; }
+  if(scrolling) placeSrc(y);
   drag.raf = requestAnimationFrame(dragTick);
 }
 
@@ -1487,6 +1504,7 @@ function endDrag(commit){
   clearTimeout(drag.timer);
   cancelAnimationFrame(drag.raf);
   if(drag.ghost) drag.ghost.remove();
+  $("days").style.minHeight = "";
   drag.card.classList.remove("drag-src");
   scroller().classList.remove("dragging");
   document.body.classList.remove("no-select");
