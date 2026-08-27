@@ -863,6 +863,18 @@ async function load(){
    `step` must already include any per-exercise override. */
 const WEEK_RIR_TEXT = {1:"3", 2:"2", 3:"1", 4:"4–5"};
 
+/* §1 reference week: the most recent prior week that actually holds sets. Normally
+   the week before, but it steps back past ones skipped or never logged rather than
+   treating the exercise as new. Shared with the caller so that prescribed and
+   feedback are read from the same week the sets came from. */
+function referenceWeek(weekSets, currentWeek){
+  for(let w = currentWeek - 1; w >= 1; w--){
+    const q = ((weekSets && weekSets[w]) || []).filter(s => typeof s.reps === "number" && s.reps > 0);
+    if(q.length) return w;
+  }
+  return null;
+}
+
 function suggestLoad({weekSets, prescribed, range, step, loadSense, feedback, currentWeek, startLoad, rir}){
   rir = rir ?? WEEK_RIR_TEXT[currentWeek] ?? "";
   const sense  = loadSense ?? "weight";                      // §1: absent → "weight"
@@ -874,7 +886,8 @@ function suggestLoad({weekSets, prescribed, range, step, loadSense, feedback, cu
   const qual = w => ((weekSets && weekSets[w]) || []).filter(s => typeof s.reps === "number" && s.reps > 0);
   const oneLoad = q => q.length && q.every(s => s.weight === q[0].weight) ? q[0].weight : null;
 
-  const q = qual(currentWeek - 1);
+  const ref = referenceWeek(weekSets, currentWeek);   // §1: normally N-1, further back if skipped
+  const q = ref ? qual(ref) : [];
   const n = q.length, first = q[0], last = q[n-1];
   const load = oneLoad(q);
   const mixedLoad = n > 0 && load === null;
@@ -1035,13 +1048,15 @@ function suggestFor(ex){
     }
     weekSets[w.n] = arr;
   });
+  // prescribed and feedback must come from whichever week the sets did.
+  const ref = referenceWeek(weekSets, W);
   return suggestLoad({
     weekSets,
-    prescribed: W > 1 ? ex.sets[W-2] : 0,
+    prescribed: ref ? ex.sets[ref-1] : 0,
     range: parseRange(ex.reps) || {bottom:0, top:0},
     step: stepFor(ex),
     loadSense: ex.loadSense,
-    feedback: LOG.feedback[`${W-1}|${D}|${ex.id}`] || null,
+    feedback: ref ? (LOG.feedback[`${ref}|${D}|${ex.id}`] || null) : null,
     currentWeek: W,
     startLoad: ex.start,
     rir: weekObj().rir

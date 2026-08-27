@@ -1,5 +1,8 @@
 # Load Progression Spec — meso-tracker
 
+Version 1.5 · 25 Aug 2026 — §1's reference week steps back past weeks with no logged
+sets, so skipping an exercise no longer erases its history. Supersedes v1.4, below.
+
 Version 1.4 · 22 Aug 2026 — §5.1 states the engine return contract for the first time, and
 §12's vector table splits `Expected` into class and outcome columns. Documentation only: no
 rule, expectation or schema change. Supersedes v1.3 (§4 proportionality scoping, §7.1 assist
@@ -37,8 +40,18 @@ Evaluated per `(week, day, exerciseId)`.
 | `feedback.pain` | Boolean joint-pain flag. Absent → false |
 | `loadSense` | `"weight"` (default), `"none"`, or `"assist"`. Library field. Absent → `"weight"` |
 
-A suggestion for week *N* is computed from week *N−1* data for the same
-`(day, exerciseId)`. Suggestions are never computed from a different exerciseId.
+A suggestion for week *N* is computed from the **reference week**: the most recent prior
+week holding qualifying sets for the same `(day, exerciseId)`. That is normally *N−1*, but
+it steps further back when a week was skipped or never logged, so setting an exercise aside
+for a week does not erase what came before it. Where no prior week holds any, the exercise
+is treated as new and resolves to `NO_DATA` (§9).
+
+`prescribed` and `feedback` are read from the reference week too, not from *N−1*. Suggestions
+are never computed from a different exerciseId.
+
+**[revisit]** An older reference is not a like-for-like comparison: the RIR target tightens
+3 → 2 → 1 across the block, so reps recorded two weeks back were performed further from
+failure and the resulting suggestion errs easy. Conservative, and deliberately so.
 
 Storage: `feedback|{week}|{day}|{exerciseId}` → `{effort, pain}`.
 
@@ -503,6 +516,8 @@ Every vector must pass. Unless stated, `prescribed` is 3 and effort is `right`.
 | 27 | `pullup_assisted`, week 4, week 3 unlogged, week 2 assist 50, step 10 | — | `DELOAD_ASSIST` | `60 — 4–5 RIR, stop early` |
 | 28 | `pullup_assisted`, week 4, no prior week logged, not in PROGRAM | — | `DELOAD_ASSIST` | `deload — more assistance, stop early` |
 | 29 | `pullup_assisted` 400, range 10–15, sets 17/15/14, right, presc 3, step 10 | `P_PASS` | `ADD` | `400 ✓ → drop assist to 390` |
+| 30 | Week 3, week 2 unlogged, week 1 BB 85, 8–12, 12/11/10, presc 3 | `P_PASS` | `ADD` | `85 ✓ → try 90` |
+| 31 | Week 3, no prior week logged, no start value | — | `NO_DATA` | `find it — 12 reps, 1 in reserve` |
 
 Vectors 1–12 originate with v1.0/v1.1. **Vector 9's text was amended by v1.2 §9**, which
 removed the load number from `PAIN`. **Vector 11 was amended by v1.3**, which supplied the
@@ -520,6 +535,11 @@ remain visible in the per-set ghost text.
 
 Vector 28 is the realistic path: the assisted pull-up is swapped into the vertical-pull
 slot during week 3 or 4, so no week under that exercise id carries a working load.
+
+Vectors 30 and 31 cover the reference week stepping back: 30 reaches past an unlogged
+week 2 to week 1 and suggests from it, 31 finds nothing at all and treats the exercise as
+new. **v1.5 changed no existing vector** — every one of 1–29 supplies its data in the week
+immediately before `currentWeek`, which the reference week still resolves to first.
 
 Vector 29 is a guard, not a scenario. It satisfies every condition of the double-step
 clause except sense — `jumpPct` = 2.5%, `P_PASS`, set 1 at `top + 2` — and must still

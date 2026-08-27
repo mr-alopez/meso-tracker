@@ -143,7 +143,17 @@
     // sense. Must be 390. A 380 means the §4 scoping is documentation only.
     { n: 29, expect: {class: "P_PASS", outcome: "ADD", text: "400 ✓ → drop assist to 390"},
       input: {weekSets: {1: at(400, [17, 15, 14])}, prescribed: 3, range: R10_15, step: 10,
-              loadSense: "assist", feedback: {effort: "right"}, currentWeek: 2} }
+              loadSense: "assist", feedback: {effort: "right"}, currentWeek: 2} },
+
+    // The reference week steps back past a week with nothing logged.
+    { n: 30, expect: {class: "P_PASS", outcome: "ADD", text: "85 ✓ → try 90"},
+      input: {weekSets: {1: at(85, [12, 11, 10]), 2: []}, prescribed: 3, range: R8_12, step: 5,
+              feedback: {effort: "right"}, currentWeek: 3} },
+
+    // Nothing anywhere behind it: treated as new, exactly as a first week is.
+    { n: 31, expect: {class: null, outcome: "NO_DATA", text: "find it — 12 reps, 1 in reserve"},
+      input: {weekSets: {}, prescribed: 3, range: R8_12, step: 5, startLoad: null,
+              feedback: {}, currentWeek: 3} }
   ];
 
   window.VECTORS = VECTORS;
