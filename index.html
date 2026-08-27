@@ -153,6 +153,10 @@
     margin:14px 14px 0;padding:12px 12px 4px;
     scroll-snap-align:start;scroll-snap-stop:always;scroll-margin-top:78px}
   .card.done{border-top-color:var(--logged)}
+  /* Set aside for today: dimmed and named as such, but every row is left in
+     place so restoring it costs one tap and loses nothing. */
+  .card.skipped{opacity:.55;border-top-color:var(--ink-3)}
+  .card.skipped .suggest, .card.skipped .cue{display:none}
   .exhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;cursor:grab;
     user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
   .grip{flex:none;padding:5px 2px 5px 12px}
@@ -203,6 +207,8 @@
   .opt[aria-pressed="true"]{border-color:var(--signal);outline:1px solid var(--signal);outline-offset:-1px}
   .opt[aria-pressed="true"] .oname::after{content:" · current";color:var(--signal);
     font-size:11px;font-family:var(--mono);font-weight:600}
+  .opt.skipOpt{margin-top:14px;border-color:var(--deload)}
+  .opt.skipOpt .oname{color:var(--deload)}
   .tag{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
   .exname{font-size:19px;font-weight:700;letter-spacing:-.01em;margin:1px 0 2px}
   .prescribe{font-family:var(--mono);font-size:13px;color:var(--signal);margin-bottom:10px}
@@ -652,6 +658,10 @@ function resolveEx(p, dayKey){
    sessionAccum + (sessionStart ? now - sessionStart : 0): banked time plus the
    current run. sessionStart null with sessionAccum > 0 means paused.
    sets:  "week|day|exercise id|setIdx" -> {weight, reps, done}  (weight/reps: number or null)
+   skips:   "week|day|exercise id" -> true. An exercise deliberately set aside
+   for that day: its sets stop counting toward the day being finished, and it
+   keeps no data, so the following week reads through it to the last week that
+   has some (spec sec.1 reference week).
    warmups: "week|day|exercise id|idx" -> {weight, reps}. Deliberately a
    separate map: suggestLoad reads sets only, and a ramp recorded as working
    sets is exactly what the spec's MIXED rule exists to reject.
@@ -668,7 +678,7 @@ function resolveEx(p, dayKey){
    renames, reorders and swaps never mislabel old logs.
    Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
 const STORE_KEY = "meso-tracker";
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 const MESO_ID = "meso01";
 
 /* v3 -> v4: exact display-name -> library-id table for every exercise that has
@@ -766,7 +776,9 @@ const MIGRATIONS = {
     if(s.settings.week === undefined) s.settings.week = 1;
     if(s.settings.day === undefined) s.settings.day = "mon";
     return s;
-  }
+  },
+  // v11 added skipped exercises.
+  10: s => { Object.values(s.mesos).forEach(m => { m.skips = m.skips || {}; }); return s; }
 };
 
 function freshStore(){
@@ -842,7 +854,7 @@ async function load(){
   }
   // A rest clock still running hours later was forgotten, not rested.
   if(STORE.timers.restStart && Date.now() - STORE.timers.restStart > 6*3600*1000) STORE.timers.restStart = null;
-  if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}, order:{}, swaps:{}, feedback:{}, warmups:{}};
+  if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}, order:{}, swaps:{}, feedback:{}, warmups:{}, skips:{}};
   LOG = STORE.mesos[MESO_ID];
   LOG.sets = LOG.sets || {};
   LOG.notes = LOG.notes || {};
@@ -850,6 +862,7 @@ async function load(){
   LOG.swaps = LOG.swaps || {};
   LOG.feedback = LOG.feedback || {};
   LOG.warmups = LOG.warmups || {};
+  LOG.skips = LOG.skips || {};
 }
 
 /* ---- load progression rule engine ----
@@ -1078,6 +1091,7 @@ function dayComplete(w, dayKey){
   if(!day) return false;
   return day.ex.every(p => {
     const ex = resolveEx(p, dayKey);
+    if(isSkipped(w, dayKey, ex.id)) return true;   // deliberately set aside, not outstanding
     for(let si = 0; si < ex.sets[w-1]; si++)
       if(!LOG.sets[cell(w, dayKey, ex.id, si)]?.done) return false;
     return true;
@@ -1191,10 +1205,11 @@ function renderDay(){
     const noteVal = LOG.notes[`${W}|${D}|${ex.id}`] || "";
     const sug = suggestFor(ex);
     const fb = LOG.feedback[`${W}|${D}|${ex.id}`] || {};
-    return `<div class="card ${allDone?'done':''} ${ex.swapped?'swapped':''}" data-ex="${ex.programId}">
+    const skipped = isSkipped(W, D, ex.id);
+    return `<div class="card ${allDone?'done':''} ${ex.swapped?'swapped':''} ${skipped?'skipped':''}" data-ex="${ex.programId}">
       <div class="exhead">
         <div>
-          <div class="tag">${ex.muscle}${ex.swapped?' · swapped in':''}</div>
+          <div class="tag">${skipped?'Skipped today':`${ex.muscle}${ex.swapped?' · swapped in':''}`}</div>
           <div class="exname">${ex.name}</div>
         </div>
         <div class="headbtns">
@@ -1257,9 +1272,12 @@ const fmtClock = ms => {
   return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 };
 
+const isSkipped = (w, dayKey, exId) => !!LOG.skips[`${w}|${dayKey}|${exId}`];
+
 function setsLeft(){
   let left = 0;
   exList().forEach(ex => {
+    if(isSkipped(W, D, ex.id)) return;          // set aside: not work still owed
     for(let si = 0; si < ex.sets[W-1]; si++)
       if(!LOG.sets[cell(W,D,ex.id,si)]?.done) left++;
   });
@@ -1585,6 +1603,14 @@ function openSwapSheet(ex){
       ${spinal}
     </button>`;
   }).join("");
+  const skipped = isSkipped(W, D, ex.id);
+  $("swapOpts").insertAdjacentHTML("beforeend",
+    `<button class="opt skipOpt" data-skip="${ex.programId}">
+      <div class="oname">${skipped ? "Put it back" : "Skip it today"}</div>
+      <div class="ometa">${skipped
+        ? "counts toward the day again"
+        : "stops counting toward the day; next week still reads your last real numbers"}</div>
+    </button>`);
   $("swapSheet").hidden = false;
 }
 
@@ -1593,6 +1619,14 @@ function closeSwapSheet(){ $("swapSheet").hidden = true; }
 document.addEventListener("click", e=>{
   const sb = e.target.closest(".swapBtn");
   if(sb){ openSwapSheet(exList()[sb.dataset.e]); return; }
+  const skipBtn = e.target.closest(".skipOpt");
+  if(skipBtn){
+    const ex = exList().find(x => x.programId === skipBtn.dataset.skip);
+    const k = `${W}|${D}|${ex.id}`;
+    if(LOG.skips[k]) delete LOG.skips[k]; else LOG.skips[k] = true;
+    save(); closeSwapSheet(); render(); renderDash();
+    return;
+  }
   const opt = e.target.closest(".opt");
   if(opt){
     const pid = opt.dataset.program, to = opt.dataset.swapTo;
@@ -1692,7 +1726,7 @@ document.addEventListener("click", e=>{
   if(e.target.id==="importBtn"){ $("importFile").click(); return; }
   if(e.target.id==="resetBtn"){
     if(confirm("Clear every logged weight, rep and note in this meso? The program itself stays.")){
-      LOG.sets = {}; LOG.notes = {}; LOG.warmups = {}; save(); render();
+      LOG.sets = {}; LOG.notes = {}; LOG.warmups = {}; LOG.skips = {}; save(); render();
     }
   }
 });
