@@ -1,5 +1,12 @@
 # Load Progression Spec — meso-tracker
 
+Version 1.6 · 27 Aug 2026 — library slots corrected (`quad_unilateral` split out of
+`quad_isolation`), belt-loaded dip and pull-up added as separate ids, §7's inheritance now
+reads the reference week among loading weeks only, and two `[revisit]` items discharged.
+**Two parts of the v1.6 amendment are deliberately not applied:** the §2 per-exercise `step`
+overrides, which are blocked on hardware that does not exist (no 1.25 lb add-on plates), and
+§13's mesocycle lifecycle, which is scheduled separately. Supersedes v1.5, below.
+
 Version 1.5 · 25 Aug 2026 — §1's reference week steps back past weeks with no logged
 sets, so skipping an exercise no longer erases its history. Supersedes v1.4, below.
 
@@ -49,9 +56,18 @@ is treated as new and resolves to `NO_DATA` (§9).
 `prescribed` and `feedback` are read from the reference week too, not from *N−1*. Suggestions
 are never computed from a different exerciseId.
 
-**[revisit]** An older reference is not a like-for-like comparison: the RIR target tightens
-3 → 2 → 1 across the block, so reps recorded two weeks back were performed further from
-failure and the resulting suggestion errs easy. Conservative, and deliberately so.
+**Decided, not deferred (v1.6):** an older reference is not a like-for-like comparison — the
+RIR target tightens 3 → 2 → 1 across the block, so reps recorded two weeks back were performed
+further from failure and the suggestion errs easy. No compensation is applied. Correcting for
+the RIR gap would stack a reps-per-RIR conversion on top of §4's reps-per-percent heuristic,
+two approximations multiplied together, on a path that only fires after a skipped week. The
+cost of erring easy is one light suggestion that §8 corrects the following week.
+
+**Warm-up sets are recorded but never read here.** They live in their own store and no rule in
+this document consults them. That isolation is the point: a ramp logged as working sets is
+exactly what §11's `MIXED` rule exists to reject. Decided (v1.6) that they stay a record only —
+checking a working load against the last warm-up would fire on every exercise every session and
+change no decision, since a legitimate jump is indistinguishable from an error without intent.
 
 Storage: `feedback|{week}|{day}|{exerciseId}` → `{effort, pain}`.
 
@@ -67,8 +83,10 @@ field and defaults to `"weight"`.
 | `back_extension_45` | `none` |
 | `pullup_assisted` | `assist` |
 
-**[revisit]** Dips and pull-ups can be weighted with a belt. Treated as `none` for now;
-adding load to them would require a fourth sense or a per-set flag.
+**Decided (v1.6):** belt-loaded dips and pull-ups are separate library entries,
+`dip_weighted` and `pullup_weighted`, carrying the default `weight` sense. No fourth load
+sense is needed. Separate ids are correct rather than convenient: adding a belt changes the
+exercise and the rep counts are not comparable, so history should not transfer between them.
 
 ---
 
@@ -302,10 +320,15 @@ at the unassisted library entry rather than attempting arithmetic below the floo
   or performance.
 - **Week 4 feedback is recorded but not acted on.** It exists for your reading, not
   the algorithm's.
-- **Next mesocycle inheritance:** week 1 of a new meso inherits **week 3's**
-  `workingLoad` — not week 4's — with **no increment applied**. You start the new block
-  at the last real loading weight. **[revisit]** Whether a fresh meso should open one
-  step higher is a real question; conservative default is no.
+- **Next mesocycle inheritance:** week 1 of a new meso inherits, per exercise id, the
+  `workingLoad` of the **reference week among loading weeks only** — the most recent of
+  weeks 1–3 holding qualifying sets for that exercise. Week 4 is excluded: inheriting from
+  a deload would seed the next block roughly 30% light. **No increment is applied** — a
+  fresh block opens at 3 RIR, so the same load will feel easy for one week and §8 will add
+  on its own evidence in week 2; opening a step higher risks starting above what week 1's
+  RIR target supports, and one easy week costs nothing. *(Decided v1.6, discharging the
+  v1.1 `[revisit]`.)* If no loading week holds qualifying sets, inheritance falls to the
+  prior meso's PROGRAM `start` for that exercise, then to none.
 
 **Deload load, sense `weight`.** Resolves the case where week 3 has no computable
 working load:
