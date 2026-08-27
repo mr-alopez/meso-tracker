@@ -22,6 +22,7 @@
   const R10_15 = {bottom: 10, top: 15};
   const R12_20 = {bottom: 12, top: 20};
   const NO_RANGE = {bottom: 0, top: 0};   // sense "none" never reads the range
+  const RACK = [10, 12, 15, 20, 25, 30];  // the gym's dumbbells: fives, except the 12
 
   const VECTORS = [
     { n: 1, expect: {class: "P_GATED", outcome: "HOLD_GATE", text: "repeat 25 — need 15+ before 30"},
@@ -153,7 +154,20 @@
     // Nothing anywhere behind it: treated as new, exactly as a first week is.
     { n: 31, expect: {class: null, outcome: "NO_DATA", text: "find it — 12 reps, 1 in reserve"},
       input: {weekSets: {}, prescribed: 3, range: R8_12, step: 5, startLoad: null,
-              feedback: {}, currentWeek: 3} }
+              feedback: {}, currentWeek: 3} },
+
+    // A rack of real loads: the step depends on which dumbbell is in your hand.
+    { n: 32, expect: {class: "P_PASS", outcome: "ADD", text: "10 ✓ → try 12"},
+      input: {weekSets: {1: at(10, [20, 18, 16])}, prescribed: 3, range: R12_20, step: 5,
+              rack: RACK, feedback: {effort: "easy"}, currentWeek: 2} },
+
+    { n: 33, expect: {class: "P_GATED", outcome: "HOLD_GATE", text: "repeat 12 — need 21+ before 15"},
+      input: {weekSets: {1: at(12, [20, 18, 16])}, prescribed: 3, range: R12_20, step: 5,
+              rack: RACK, feedback: {effort: "right"}, currentWeek: 2} },
+
+    { n: 34, expect: {class: "P_FAIL", outcome: "REDUCE", text: "drop to 12 — 12+ clean"},
+      input: {weekSets: {1: at(15, [10, 9, 8])}, prescribed: 3, range: R12_20, step: 5,
+              rack: RACK, feedback: {effort: "right"}, currentWeek: 2} }
   ];
 
   window.VECTORS = VECTORS;

@@ -572,6 +572,11 @@ const LIBRARY = {
       equipment:["machine"], unit:"", spinalLoad:"low" }
   ]
 };
+/* The loads that actually exist on the gym's dumbbell rack. Uniform fives except for
+   the 12, which is what makes a single step wrong (see spec §2). Nothing below 10 is
+   listed because nothing below 10 gets used. */
+LIBRARY.racks = { dumbbell: [10,12,15,20,25,30,35,40,45,50,55,60,65,70,75,80] };
+
 const LIB_EX = new Map(LIBRARY.exercises.map(e=>[e.id,e]));
 
 /* ---- program ----
@@ -895,12 +900,19 @@ function referenceWeek(weekSets, currentWeek){
   return null;
 }
 
-function suggestLoad({weekSets, prescribed, range, step, loadSense, feedback, currentWeek, startLoad, rir}){
+function suggestLoad({weekSets, prescribed, range, step, rack, loadSense, feedback, currentWeek, startLoad, rir}){
   rir = rir ?? WEEK_RIR_TEXT[currentWeek] ?? "";
   const sense  = loadSense ?? "weight";                      // §1: absent → "weight"
   const effort = (feedback && feedback.effort) || "right";   // §1: absent → "right"
   const pain   = !!(feedback && feedback.pain);
   const bottom = range.bottom, top = range.top;
+  /* §2: where a rack of real loads is given, the increment depends on which load you
+     are holding - the dumbbells run 10, 12, 15, 20, so it is 2 from the 10s and 3 from
+     the 12s. Derived here rather than assumed uniform, so the engine never suggests a
+     dumbbell that does not exist. Falls back to the scalar step at either end. */
+  const rackUp = l => { const r = (rack||[]).filter(v => v > l).sort((a,b)=>a-b); return r.length ? r[0]-l : null; };
+  const rackDown = l => { const r = (rack||[]).filter(v => v < l).sort((a,b)=>b-a); return r.length ? l-r[0] : null; };
+  const rackAtOrBelow = v => { const r = (rack||[]).filter(x => x <= v).sort((a,b)=>b-a); return r.length ? r[0] : null; };
 
   // §1: a set qualifies on reps > 0; the done checkbox is ignored.
   const qual = w => ((weekSets && weekSets[w]) || []).filter(s => typeof s.reps === "number" && s.reps > 0);
@@ -950,7 +962,8 @@ function suggestLoad({weekSets, prescribed, range, step, loadSense, feedback, cu
     if(currentWeek === 4){
       const base = deloadBase();
       if(base === null)    return ret("DELOAD", `about two-thirds of your usual — ${rir} RIR, stop early`);
-      const dl = Math.max(step, Math.floor(base * 0.70 / step) * step);   // §7
+      const target = base * 0.70;                                        // §7
+      const dl = rackAtOrBelow(target) ?? Math.max(step, Math.floor(target / step) * step);
       return ret("DELOAD", `${dl} — ${rir} RIR, stop early`, dl);
     }
     if(n === 0){
@@ -972,15 +985,18 @@ function suggestLoad({weekSets, prescribed, range, step, loadSense, feedback, cu
      clause) both compute from jumpPct, undefined for "none" and meaningless
      for "assist". One guard governs both, as the spec states it once. */
   const proportional = sense === "weight";
-  let requiredReps = null, inc = step;
+  const stepUp = (proportional && rackUp(load)) || step;      // §2: from this load, not in general
+  const stepDown = (proportional && rackDown(load)) || step;
+  let requiredReps = null, inc = stepUp;
   if(proportional){
-    const jumpPct = step / load;
+    const jumpPct = stepUp / load;
     if(cls === "P_PASS"){
       requiredReps = bottom + Math.ceil(jumpPct / 0.03);
       if(requiredReps > top + 6)         cls = "P_UNPROGRESSABLE";
       else if(first.reps < requiredReps) cls = "P_GATED";
     }
-    if(cls === "P_PASS" && jumpPct < 0.03 && first.reps >= top + 2) inc = 2 * step;   // §2
+    if(cls === "P_PASS" && jumpPct < 0.03 && first.reps >= top + 2)                    // §2
+      inc = (rackUp(load + stepUp) ? stepUp + rackUp(load + stepUp) : 2 * stepUp);
   }
 
   // ---- §8 matrix: class × effort → outcome (P_FAIL ignores effort) ----
@@ -1007,14 +1023,14 @@ function suggestLoad({weekSets, prescribed, range, step, loadSense, feedback, cu
   switch(outcome){                                           // §8 text, sense weight
     case "ADD":       return ret("ADD", `${load} ✓ → try ${load + inc}`, load + inc, cls);
     case "HOLD_RIR":  return ret("HOLD_RIR", `repeat ${load} — same reps, more in reserve`, load, cls);
-    case "HOLD_GATE": return ret("HOLD_GATE", `repeat ${load} — need ${requiredReps}+ before ${load + step}`, load, cls);
+    case "HOLD_GATE": return ret("HOLD_GATE", `repeat ${load} — need ${requiredReps}+ before ${load + stepUp}`, load, cls);
     case "HOLD_PUSH": return ret("HOLD_PUSH", `repeat ${load} — take it closer to ${rir} RIR`, load, cls);
     case "REDUCE": {
-      const down = Math.max(step, load - step);
+      const down = Math.max(stepDown, load - stepDown);       // lands on a load that exists
       return ret("REDUCE", `drop to ${down} — ${bottom}+ clean`, down, cls);
     }
     default: return cls === "P_UNPROGRESSABLE"
-      ? ret("HOLD", `${step} is too big a jump here — hold ${load} and add reps`, load, cls)
+      ? ret("HOLD", `${stepUp} is too big a jump here — hold ${load} and add reps`, load, cls)
       : ret("HOLD", `repeat ${load} — chase ${top}+`, load, cls);
   }
 }
@@ -1075,6 +1091,8 @@ function suggestFor(ex){
     prescribed: ref ? ex.sets[ref-1] : 0,
     range: parseRange(ex.reps) || {bottom:0, top:0},
     step: stepFor(ex),
+    rack: ex.equipment.includes("dumbbell") && typeof LIB_EX.get(ex.id).step !== "number"
+      ? LIBRARY.racks.dumbbell : null,
     loadSense: ex.loadSense,
     feedback: ref ? (LOG.feedback[`${ref}|${D}|${ex.id}`] || null) : null,
     currentWeek: W,

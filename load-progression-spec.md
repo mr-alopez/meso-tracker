@@ -1,5 +1,10 @@
 # Load Progression Spec — meso-tracker
 
+Version 1.7 · 27 Aug 2026 — §2 models the dumbbell rack. `step` is derived from the loads
+that actually exist rather than assumed uniform, because the rack runs 10, 12, 15, 20 — the 12
+makes the increment depend on where you are standing. This unstalls the lateral raise without
+any new hardware. Supersedes v1.6, below.
+
 Version 1.6 · 27 Aug 2026 — library slots corrected (`quad_unilateral` split out of
 `quad_isolation`), belt-loaded dip and pull-up added as separate ids, §7's inheritance now
 reads the reference week among loading weeks only, and two `[revisit]` items discharged.
@@ -41,7 +46,7 @@ Evaluated per `(week, day, exerciseId)`.
 | `prescribed` | Set count from PROGRAM for that week |
 | `workingLoad` | The weight value, if identical across all qualifying sets |
 | `mixedLoad` | True when qualifying sets do not all share one weight |
-| `step` | Smallest load increment available (see §2) |
+| `step` | Smallest load increment achievable from the current load (see §2). Derived from the rack where one is defined, otherwise the equipment default |
 | `jumpPct` | `step / workingLoad` |
 | `feedback.effort` | `"easy"` / `"right"` / `"brutal"`. Absent → treat as `"right"` |
 | `feedback.pain` | Boolean joint-pain flag. Absent → false |
@@ -107,6 +112,25 @@ invent smaller increments.
 **Per-exercise override:** an exercise may carry an optional `step` field which wins
 over the table. Machine flye is known to have fine add-ons (72.5 lb appears in the
 logs), so it should carry `step: 2.5`.
+
+**Non-uniform racks.** A single `step` per exercise assumes evenly spaced loads. The
+dumbbell rack is not evenly spaced: it runs 10, 12, 15, 20, 25 and upward in fives, so the
+increment depends on the load you are holding — 2 from the 10s, 3 from the 12s, 5 from the
+15s. Where a rack is defined, `step` is derived from it rather than assumed:
+
+```
+stepUp   = (smallest rack load greater than workingLoad) − workingLoad
+stepDown = workingLoad − (largest rack load less than workingLoad)
+```
+
+`stepUp` drives `jumpPct`, the §4 gate and `ADD`. `stepDown` drives `REDUCE`, so a
+reduction also lands on a load that exists. Where the rack runs out in either direction,
+the equipment default applies. A deload (§7) snaps to the largest rack load at or below the
+computed figure, for the same reason.
+
+This is a statement about equipment, not about training. It replaces what would otherwise
+be a per-exercise `step` override that is correct at one load and wrong at the next: a flat
+`step: 2` is right from the 10s and would prescribe a 14 lb dumbbell from the 12s.
 
 **Direction of progression.** Which way a step moves depends on `loadSense`:
 
@@ -541,6 +565,9 @@ Every vector must pass. Unless stated, `prescribed` is 3 and effort is `right`.
 | 29 | `pullup_assisted` 400, range 10–15, sets 17/15/14, right, presc 3, step 10 | `P_PASS` | `ADD` | `400 ✓ → drop assist to 390` |
 | 30 | Week 3, week 2 unlogged, week 1 BB 85, 8–12, 12/11/10, presc 3 | `P_PASS` | `ADD` | `85 ✓ → try 90` |
 | 31 | Week 3, no prior week logged, no start value | — | `NO_DATA` | `find it — 12 reps, 1 in reserve` |
+| 32 | Rack 10/12/15/20, load 10, range 12–20, sets 20/18/16, easy, presc 3 | `P_PASS` | `ADD` | `10 ✓ → try 12` |
+| 33 | Rack 10/12/15/20, load 12, range 12–20, sets 20/18/16, presc 3 | `P_GATED` | `HOLD_GATE` | `repeat 12 — need 21+ before 15` |
+| 34 | Rack 10/12/15/20, load 15, range 12–20, sets 10/9/8, presc 3 | `P_FAIL` | `REDUCE` | `drop to 12 — 12+ clean` |
 
 Vectors 1–12 originate with v1.0/v1.1. **Vector 9's text was amended by v1.2 §9**, which
 removed the load number from `PAIN`. **Vector 11 was amended by v1.3**, which supplied the
@@ -558,6 +585,11 @@ remain visible in the per-set ghost text.
 
 Vector 28 is the realistic path: the assisted pull-up is swapped into the vertical-pull
 slot during week 3 or 4, so no week under that exercise id carries a working load.
+
+Vectors 32–34 cover the derived rack step: 32 unstalls the lateral raise by stepping to the
+12s, 33 shows the increment growing to 3 once you are on them, and 34 reduces onto a load that
+exists rather than one that does not. **v1.7 changed no existing vector** — every one of 1–31
+passes a scalar `step` and defines no rack, which is still honoured exactly.
 
 Vectors 30 and 31 cover the reference week stepping back: 30 reaches past an unlogged
 week 2 to week 1 and suggests from it, 31 finds nothing at all and treats the exercise as
