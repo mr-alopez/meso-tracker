@@ -272,8 +272,18 @@
   .row.warm .setno{color:var(--deload)}
   .row.warm input[type=number]{border-color:var(--line-2)}
 
-  .note{width:100%;border:none;border-top:1px solid var(--line-2);background:transparent;padding:9px 2px;
-    font-family:var(--sans);font-size:14px;color:var(--ink-2);resize:none;margin-top:6px}
+  /* The Done button only has to dismiss the keyboard - the note saves as you
+     type - so it stays out of the way until the field is actually in use.
+     visibility rather than display keeps its space reserved, or the textarea
+     would resize under your thumb mid-sentence. */
+  .noterow{display:flex;align-items:flex-end;gap:8px;border-top:1px solid var(--line-2);margin-top:6px}
+  .noteDone{flex:none;visibility:hidden;appearance:none;border:1px solid var(--line-2);
+    background:transparent;color:var(--ink-2);font-family:var(--mono);font-size:11px;font-weight:600;
+    letter-spacing:.08em;text-transform:uppercase;padding:9px 12px;border-radius:2px;cursor:pointer;
+    margin-bottom:6px}
+  .noterow:focus-within .noteDone{visibility:visible}
+  .note{width:100%;border:none;background:transparent;padding:9px 2px;
+    font-family:var(--sans);font-size:14px;color:var(--ink-2);resize:none}
   .note:focus{outline:none;color:var(--ink)}
   .note::placeholder{color:var(--placeholder)}
 
@@ -516,7 +526,19 @@ const LIBRARY = {
       equipment:["machine"], unit:"", spinalLoad:"low" },
     { id:"walking_lunge", name:"Walking Lunge", slot:"quad_isolation", muscle:"Quads",
       equipment:["dumbbell"], unit:"per DB", spinalLoad:"low",
-      cue:"Competes with running for recovery more than a leg extension does. Watch the interaction." },
+      cue:"Needs floor space to travel. Competes with running for recovery more than a leg extension does." },
+    { id:"db_reverse_lunge", name:"Reverse Lunge", slot:"quad_isolation", muscle:"Quads",
+      equipment:["dumbbell"], unit:"per DB", spinalLoad:"low",
+      cue:"Stepping back instead of forward keeps you on one spot, so it fits a crowded floor." },
+    { id:"db_split_squat", name:"Dumbbell Split Squat", slot:"quad_isolation", muscle:"Quads",
+      equipment:["dumbbell"], unit:"per DB", spinalLoad:"low",
+      cue:"Feet stay planted for the whole set. Let the front knee travel forward to bias the quad." },
+    { id:"db_step_up", name:"Dumbbell Step-Up", slot:"quad_isolation", muscle:"Quads",
+      equipment:["dumbbell","bench"], unit:"per DB", spinalLoad:"low",
+      cue:"Drive through the top foot without pushing off the trailing leg." },
+    { id:"sissy_squat", name:"Sissy Squat", slot:"quad_isolation", muscle:"Quads",
+      equipment:["none"], unit:"bodyweight", spinalLoad:"low", loadSense:"none",
+      cue:"Knees travel forward, hips stay extended. Hold a rack upright for balance. The only real quad isolation that needs no machine." },
     { id:"bb_good_morning", name:"Barbell Good Morning (High Bar)", slot:"ham_hinge", muscle:"Hamstrings",
       equipment:["barbell","rack"], unit:"", spinalLoad:"high",
       cue:"Longest lever of the hinge options and the most low-back demanding. Keep the load conservative." },
@@ -1187,7 +1209,10 @@ function renderDay(){
           `<button class="fb" data-fb="${o}" data-e="${ei}" aria-pressed="${fb.effort===o}">${o}</button>`).join("")}
         <button class="fb fbpain" data-fb="pain" data-e="${ei}" aria-pressed="${!!fb.pain}">pain</button>
       </div>
-      <textarea class="note" rows="1" data-note="${ei}" placeholder="Note…">${noteVal}</textarea>
+      <div class="noterow">
+        <textarea class="note" rows="1" data-note="${ei}" placeholder="Note…">${noteVal}</textarea>
+        <button class="noteDone" type="button" aria-label="Finish note and close the keyboard">Done</button>
+      </div>
     </div>`;
   }).join("");
   paintActive();
@@ -1307,7 +1332,16 @@ function paintActive(){
 
 document.addEventListener("focusin", e => {
   const row = e.target.closest && e.target.closest(".row");
-  if(row && row.dataset.r){ activeOverride = row.dataset.r; paintActive(); }
+  if(row && row.dataset.r){
+    /* Reaching for the set that is due ends the rest period - you are back to
+       work - which saves stopping the clock as its own tap and a scroll. Note
+       the check runs before the marker moves: touching an already logged row
+       is a correction, not the next set, and leaves the clock running. */
+    if(row.classList.contains("active") && STORE.timers.restStart){
+      STORE.timers.restStart = null; save(); tickDash();
+    }
+    activeOverride = row.dataset.r; paintActive();
+  }
   if(e.target.matches && e.target.matches("input,textarea")) scroller().classList.add("typing");
 });
 document.addEventListener("focusout", e => {
@@ -1614,6 +1648,8 @@ document.addEventListener("click", e=>{
     warmShown.set(warmUi(ex), warmRowCount(ex) + 1);
     renderDay(); return;
   }
+  const nd = e.target.closest(".noteDone");
+  if(nd){ const ta = nd.parentNode.querySelector(".note"); if(ta) ta.blur(); return; }
   const chk = e.target.closest(".chk");
   if(chk){
     const k = cell(W,D,exList()[chk.dataset.e].id,chk.dataset.s);
