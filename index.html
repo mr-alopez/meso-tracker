@@ -1090,7 +1090,16 @@ function suggestLoad({weekSets, prescribed, range, step, rack, loadSense, feedba
 
   // §1: a set qualifies on reps > 0; the done checkbox is ignored.
   const qual = w => ((weekSets && weekSets[w]) || []).filter(s => typeof s.reps === "number" && s.reps > 0);
-  const oneLoad = q => q.length && q.every(s => s.weight === q[0].weight) ? q[0].weight : null;
+  /* §1 workingLoad: the weight value, if identical across all qualifying sets.
+     A set with no weight recorded has no weight value, so undefined normalises
+     to null here rather than comparing equal to another undefined - which had
+     the engine treat "no weight at all" as a real, shared load and do
+     arithmetic on it (`undefined + 5` -> NaN). */
+  const oneLoad = q => {
+    if(!q.length) return null;
+    const w0 = q[0].weight ?? null;
+    return q.every(s => (s.weight ?? null) === w0) ? w0 : null;
+  };
 
   const ref = referenceWeek(weekSets, currentWeek);   // §1: normally N-1, further back if skipped
   const q = ref ? qual(ref) : [];
@@ -1254,7 +1263,10 @@ function suggestFor(ex){
     const arr = [];
     for(let si = 0; si < ex.sets[w.n-1]; si++){
       const c = LOG.sets[cell(w.n, D, ex.id, si)];
-      if(c) arr.push({weight: c.weight, reps: c.reps});
+      // A set logged for reps only has no `weight` key at all, so c.weight is
+      // undefined rather than null. Undefined is not a weight value; normalise
+      // it so it cannot be mistaken for one downstream.
+      if(c) arr.push({weight: c.weight ?? null, reps: c.reps});
     }
     weekSets[w.n] = arr;
   });
@@ -1390,7 +1402,7 @@ function renderDay(){
        §5.1's `load` is null wherever there is no single number to name - MIXED,
        PAIN, and find-it - and the hint is then empty rather than falling back
        to `start`, which would put the stale number straight back. */
-    const hint = sug.load ?? "";
+    const hint = Number.isFinite(sug.load) ? sug.load : "";
     const rows = Array.from({length:n},(_,si)=>{
       const c = LOG.sets[cell(W,D,ex.id,si)] || {};
       const prev = W>1 ? (LOG.sets[cell(W-1,D,ex.id,si)] || null) : null;
