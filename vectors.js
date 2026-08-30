@@ -8,7 +8,7 @@
      document.head.appendChild(Object.assign(document.createElement("script"),
        {src: "vectors.js", onload: () => runVectors()}));
 
-   load-progression-spec.md §12 is the source of truth. This file transcribes
+   load-progression-spec.md §12 is the source of truth (spec v1.8). This file transcribes
    that table; where they disagree, the table is correct and this file is
    wrong. Every row asserts class, outcome and exact text — including
    `class: null` on the short-circuit rows, which is what catches
@@ -70,7 +70,7 @@
       input: {weekSets: {1: bw([13, 12])}, prescribed: 2, range: NO_RANGE, step: 5,
               loadSense: "none", feedback: {}, currentWeek: 2} },
 
-    { n: 12, expect: {class: null, outcome: "INCOMPLETE", text: "repeat 85 — finish all 3 sets"},
+    { n: 12, expect: {class: null, outcome: "INCOMPLETE", text: "repeat 85 — 2 of 3 sets logged"},
       input: {weekSets: {1: at(85, [12, 11])}, prescribed: 3, range: R8_12, step: 5,
               feedback: {effort: "right"}, currentWeek: 2} },
 
@@ -90,7 +90,7 @@
       input: {weekSets: {1: bw([14, 12])}, prescribed: 2, range: NO_RANGE, step: 5,
               loadSense: "none", feedback: {pain: true}, currentWeek: 2} },
 
-    { n: 17, expect: {class: null, outcome: "INCOMPLETE_BW", text: "beat 12 — finish all 2 sets"},
+    { n: 17, expect: {class: null, outcome: "INCOMPLETE_BW", text: "beat 12 — 1 of 2 sets logged"},
       input: {weekSets: {1: bw([12])}, prescribed: 2, range: NO_RANGE, step: 5,
               loadSense: "none", feedback: {}, currentWeek: 2} },
 
@@ -167,7 +167,38 @@
 
     { n: 34, expect: {class: "P_FAIL", outcome: "REDUCE", text: "drop to 12 — 12+ clean"},
       input: {weekSets: {1: at(15, [10, 9, 8])}, prescribed: 3, range: R12_20, step: 5,
-              rack: RACK, feedback: {effort: "right"}, currentWeek: 2} }
+              rack: RACK, feedback: {effort: "right"}, currentWeek: 2} },
+
+    /* v1.8: a skip does not hide sets already logged. These pin behaviour that
+       was previously emergent and is now a decided rule.
+
+       `skipped` is deliberately NOT an engine input - the app expresses a skip
+       by leaving no sets behind - so #36 and #37 are one input written twice.
+       That is the point of the pair: they must stay byte-identical, and they
+       fail loudly the moment anyone wires a skip flag into evaluation. */
+    { n: 35, expect: {class: "P_PASS", outcome: "ADD", text: "85 ✓ → try 90"},
+      input: {weekSets: {1: at(85, [12, 11, 10]), 2: []}, prescribed: 3, range: R8_12, step: 5,
+              feedback: {effort: "right"}, currentWeek: 3} },
+
+    // week 2 skipped, but 2 of 3 sets were logged before he walked out
+    { n: 36, expect: {class: null, outcome: "INCOMPLETE", text: "repeat 90 — 2 of 3 sets logged"},
+      input: {weekSets: {1: at(85, [12, 11, 10]), 2: at(90, [9, 8])}, prescribed: 3,
+              range: R8_12, step: 5, feedback: {effort: "right"}, currentWeek: 3} },
+
+    // identical, without the skip: the skip must change nothing
+    { n: 37, expect: {class: null, outcome: "INCOMPLETE", text: "repeat 90 — 2 of 3 sets logged"},
+      input: {weekSets: {1: at(85, [12, 11, 10]), 2: at(90, [9, 8])}, prescribed: 3,
+              range: R8_12, step: 5, feedback: {effort: "right"}, currentWeek: 3} },
+
+    // a COMPLETE week under a skip must still progress normally
+    { n: 38, expect: {class: "P_PASS", outcome: "ADD", text: "90 ✓ → try 95"},
+      input: {weekSets: {1: at(85, [12, 11, 10]), 2: at(90, [12, 11, 10])}, prescribed: 3,
+              range: R8_12, step: 5, feedback: {effort: "right"}, currentWeek: 3} },
+
+    // first coverage of the assist INCOMPLETE string
+    { n: 39, expect: {class: null, outcome: "INCOMPLETE", text: "repeat 40 assist — 2 of 3 sets logged"},
+      input: {weekSets: {1: at(40, [14, 12])}, prescribed: 3, range: R10_15, step: 10,
+              loadSense: "assist", feedback: {effort: "right"}, currentWeek: 2} }
   ];
 
   window.VECTORS = VECTORS;
