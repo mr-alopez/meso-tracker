@@ -39,3 +39,31 @@ self.addEventListener("fetch", e => {
     return Response.error();
   })());
 });
+
+/* Refresh on demand, asked for by the page.
+
+   The page cannot do this itself. The fetch handler above answers from cache
+   first and matches with ignoreSearch, so no cache-busting query string gets
+   past it — which is exactly why "reload the page" did not pick up a new build.
+   A fetch made HERE is not intercepted by this worker, so this is the only
+   place a genuine network check can happen.
+
+   cache.addAll replaces entries only if every request succeeds, so a refresh
+   attempted with no signal throws and leaves the cached app exactly as it was.
+   That matters: this runs on a phone in a gym basement. */
+self.addEventListener("message", e => {
+  if (e.data !== "refresh") return;
+  e.waitUntil((async () => {
+    let ok = false, lastModified = null;
+    try {
+      const res = await fetch("./index.html", { cache: "reload" });
+      if (res && res.ok) {
+        lastModified = res.headers.get("last-modified");
+        await (await caches.open(CACHE)).addAll(ASSETS);
+        ok = true;
+      }
+    } catch (err) { ok = false; }
+    (await self.clients.matchAll()).forEach(c =>
+      c.postMessage({ type: "refreshed", ok, lastModified }));
+  })());
+});

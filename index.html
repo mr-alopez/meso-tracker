@@ -346,7 +346,8 @@
   .bar{height:6px;background:var(--signal);display:inline-block;vertical-align:middle}
   .foot{padding:22px 14px 96px;font-size:12px;color:var(--ink-3);line-height:1.5}
   .build{margin-top:16px;font-family:var(--mono);font-size:11px;color:var(--ink-3);opacity:.7;
-    letter-spacing:.04em}
+    letter-spacing:.04em;display:block;appearance:none;background:none;border:none;padding:6px 0;
+    text-align:left;cursor:pointer;border-bottom:1px dashed var(--line-2);-webkit-tap-highlight-color:transparent}
   .foot button{background:none;border:none;color:var(--ink-3);font-size:12px;text-decoration:underline;padding:0;cursor:pointer;font-family:var(--sans)}
   .saving{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);
     font-family:var(--mono);font-size:11px;letter-spacing:.08em;padding:7px 14px;border-radius:2px;opacity:0;
@@ -395,7 +396,7 @@
     <button id="importBtn">Import data</button> ·
     <button id="resetBtn">Clear all logged data</button>
     <input type="file" id="importFile" accept=".json,application/json" hidden>
-    <div class="build" id="buildLine"></div>
+    <button class="build" id="buildLine"></button>
   </div>
 </div>
 <div class="saving" id="toast">SAVED</div>
@@ -2067,10 +2068,51 @@ function buildStamp(){
          d.toLocaleTimeString("en-GB", {hour:"2-digit", minute:"2-digit", hour12:false});
 }
 
-(async ()=>{
-  await load(); applyTheme(); openAtNextUnfinished(); render(); syncWakeLock();
+function renderBuildLine(){
   $("buildLine").textContent =
     `build ${buildStamp()} · schema ${SCHEMA_VERSION} · spec ${SPEC_VERSION}`;
+}
+
+/* Tap the build line to pull a new build now, instead of relaunching until one
+   happens to stick. The page cannot check for itself - the worker answers from
+   cache and ignores query strings - so it asks the worker, which is not
+   intercepted by its own fetch handler. See sw.js.
+
+   Only reloads when the server's copy is genuinely newer, so a tap mid-session
+   is a no-op rather than an interruption, and the pending save is flushed first
+   either way. */
+let checkingUpdate = false, checkTimer = null;
+
+function onSwMessage(e){
+  if(!checkingUpdate || !e.data || e.data.type !== "refreshed") return;
+  checkingUpdate = false; clearTimeout(checkTimer);
+  if(!e.data.ok){ renderBuildLine(); toastMsg("NO SIGNAL — KEPT THIS BUILD"); return; }
+  const newer = e.data.lastModified &&
+    new Date(e.data.lastModified) > new Date(document.lastModified);
+  if(!newer){ renderBuildLine(); toastMsg("UP TO DATE"); return; }
+  toastMsg("UPDATING…");
+  (async ()=>{ try{ await storage.set(STORE); }catch(err){} location.reload(); })();
+}
+navigator.serviceWorker.addEventListener("message", onSwMessage);
+
+$("buildLine").addEventListener("click", ()=>{
+  if(checkingUpdate) return;
+  const sw = navigator.serviceWorker.controller;
+  if(!sw){ toastMsg("NO WORKER — RELAUNCH"); return; }
+  checkingUpdate = true;
+  $("buildLine").textContent = "checking for an update…";
+  sw.postMessage("refresh");
+  // An older worker has no message handler and will never answer.
+  checkTimer = setTimeout(()=>{
+    if(!checkingUpdate) return;
+    checkingUpdate = false; renderBuildLine();
+    toastMsg("RELAUNCH TO FINISH UPDATING");
+  }, 8000);
+});
+
+(async ()=>{
+  await load(); applyTheme(); openAtNextUnfinished(); render(); syncWakeLock();
+  renderBuildLine();
 })();
 
 // Offline support. Serves from cache instantly, refreshes in the background;
