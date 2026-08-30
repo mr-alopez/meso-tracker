@@ -613,7 +613,14 @@ const LIB_EX = new Map(LIBRARY.exercises.map(e=>[e.id,e]));
    equipment, slot, spinal load) resolves from LIBRARY by id. Rep precedence:
    PROGRAM reps override > library exercise reps > slot defaultReps. A PROGRAM
    cue overrides the library cue. */
-const PROGRAM = {
+/* sec.13: a block is a PROGRAM plus its logged data, so PROGRAMS is keyed by
+   block id and PROGRAM is rebound when the viewed block changes. The app NEVER
+   generates one - a second block cannot be created until a PROGRAM for it is
+   authored here, which is what makes sec.13.1's create action unavailable. */
+const PROGRAMS = {};
+let PROGRAM;
+
+PROGRAMS.meso01 = {
   weeks: [
     {n:1, rir:"3", note:null},
     {n:2, rir:"2", note:null},
@@ -662,6 +669,9 @@ const PROGRAM = {
   ]
 };
 
+// Bound before load() runs so nothing can read an undefined PROGRAM.
+PROGRAM = PROGRAMS.meso01;
+
 // The library entry actually occupying a program slot on a given day —
 // the swap replacement if one is stored (and still exists), else the original.
 function effectiveLib(dayKey, programId){
@@ -687,7 +697,8 @@ function resolveEx(p, dayKey){
   const fills = (origin && origin.slot) || lib.slot;
   return {
     programId: p.id, id: lib.id, swapped,
-    sets: p.sets, start: swapped ? null : p.start,
+    // §13.2: PROGRAM start wins; a seed fills only where PROGRAM is silent.
+    sets: p.sets, start: swapped ? null : (p.start ?? LOG.seeds?.[p.id] ?? null),
     name: lib.name, muscle: lib.muscle, unit: lib.unit,
     slot: fills, equipment: lib.equipment, spinalLoad: lib.spinalLoad,
     loadSense: lib.loadSense,          // absent → the engine defaults it to "weight"
@@ -731,8 +742,13 @@ function resolveEx(p, dayKey){
    renames, reorders and swaps never mislabel old logs.
    Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
 const STORE_KEY = "meso-tracker";
-const SCHEMA_VERSION = 12;
-const MESO_ID = "meso01";
+const SCHEMA_VERSION = 13;
+const FIRST_MESO = "meso01";
+// The block being viewed. Equal to settings.activeMeso except while looking at
+// a closed block, which sec.13.6 makes read-only rather than merely non-default.
+let VIEW_MESO = FIRST_MESO;
+const activeMeso = () => STORE.settings.activeMeso || FIRST_MESO;
+const viewingActive = () => VIEW_MESO === activeMeso();
 
 /* v3 -> v4: exact display-name -> library-id table for every exercise that has
    ever appeared in PROGRAM. No fuzzy matching — a key segment either matches a
@@ -834,7 +850,19 @@ const MIGRATIONS = {
   10: s => { Object.values(s.mesos).forEach(m => { m.skips = m.skips || {}; }); return s; },
   // v12 added skipped days. Purely additive: an absent map is an empty one,
   // so nothing already logged changes meaning.
-  11: s => { Object.values(s.mesos).forEach(m => { m.daySkips = m.daySkips || {}; }); return s; }
+  11: s => { Object.values(s.mesos).forEach(m => { m.daySkips = m.daySkips || {}; }); return s; },
+  /* v13 opened the door to more than one block (sec.13). The existing meso keeps
+     its id, names the PROGRAM it was always running, and becomes the active one.
+     Additive: a single-block store means exactly what it meant before. */
+  12: s => {
+    s.settings = s.settings || {};
+    s.settings.activeMeso = s.settings.activeMeso || "meso01";
+    Object.entries(s.mesos).forEach(([id, m]) => {
+      m.program = m.program || id;
+      m.seeds = m.seeds || {};
+    });
+    return s;
+  }
 };
 
 function freshStore(){
@@ -910,8 +938,9 @@ async function load(){
   }
   // A rest clock still running hours later was forgotten, not rested.
   if(STORE.timers.restStart && Date.now() - STORE.timers.restStart > 6*3600*1000) STORE.timers.restStart = null;
-  if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}, order:{}, swaps:{}, feedback:{}, warmups:{}, skips:{}, daySkips:{}};
-  LOG = STORE.mesos[MESO_ID];
+  STORE.settings.activeMeso = STORE.settings.activeMeso || FIRST_MESO;
+  if(!STORE.mesos[activeMeso()]) STORE.mesos[activeMeso()] = freshBlock(FIRST_MESO);
+  bindBlock(activeMeso());
   LOG.sets = LOG.sets || {};
   LOG.notes = LOG.notes || {};
   LOG.order = LOG.order || {};
@@ -920,6 +949,81 @@ async function load(){
   LOG.warmups = LOG.warmups || {};
   LOG.skips = LOG.skips || {};
   LOG.daySkips = LOG.daySkips || {};
+  LOG.seeds = LOG.seeds || {};
+}
+
+function freshBlock(programId){
+  return {program: programId, sets:{}, notes:{}, order:{}, swaps:{}, feedback:{},
+          warmups:{}, skips:{}, daySkips:{}, seeds:{}};
+}
+
+/* Point LOG and PROGRAM at one block. Everything downstream reads through
+   these two, which is what keeps sec.13.3's boundary structural: weekSets can
+   only ever be assembled from the block currently bound. */
+/* §13.1 create block N+1. Order is fixed by the spec: add, seed, carry over,
+   activate - and nothing in any prior block is read for anything but seeding,
+   nor written at any step.
+
+   Returns a reason rather than throwing, because the caller is a UI action that
+   §13.1 requires to be unavailable when no PROGRAM has been authored. */
+function createBlock(newId, programId){
+  if(STORE.mesos[newId])   return {ok:false, why:"a block with that id already exists"};
+  if(!PROGRAMS[programId]) return {ok:false, why:"no PROGRAM has been authored for that block"};
+  const prog = PROGRAMS[programId];
+  const from = STORE.mesos[activeMeso()];
+  const blk  = freshBlock(programId);
+
+  // §13.2. Sets key by week|day|exerciseId, and the spec seeds on exercise id
+  // ALONE - the new PROGRAM may well place it on a different day - so bucket
+  // the outgoing block by week and id, ignoring which day it was logged on.
+  const byWeekEx = {};
+  Object.entries((from && from.sets) || {}).forEach(([k, v]) => {
+    const [w, , exId] = k.split("|");
+    (byWeekEx[`${w}|${exId}`] = byWeekEx[`${w}|${exId}`] || []).push(v);
+  });
+  const named = {};
+  prog.days.forEach(d => d.ex.forEach(e => { named[e.id] = e.start ?? null; }));
+  Object.keys(named).forEach(id => {
+    if(named[id] != null) return;               // PROGRAM named one; nothing to seed
+    const weeks = {};
+    for(let w = 1; w <= 3; w++) weeks[w] = byWeekEx[`${w}|${id}`] || [];
+    const seed = seedLoad(weeks, null);
+    if(seed != null) blk.seeds[id] = seed;
+  });
+
+  // §13.4. order is the only thing that carries: keep the relative order of ids
+  // the new PROGRAM still contains, then append its new ones in PROGRAM order.
+  prog.days.forEach(d => {
+    const progIds = d.ex.map(e => e.id);
+    const prev = ((from && from.order) || {})[d.key] || [];
+    const kept = prev.filter(id => progIds.includes(id));
+    const merged = [...kept, ...progIds.filter(id => !kept.includes(id))];
+    if(merged.join("|") !== progIds.join("|")) blk.order[d.key] = merged;
+  });
+
+  STORE.mesos[newId] = blk;
+  STORE.settings.activeMeso = newId;
+  bindBlock(newId);
+  W = 1; D = PROGRAM.days[0].key;
+  STORE.settings.week = W; STORE.settings.day = D;
+  save();
+  return {ok:true, id:newId, seeded:Object.keys(blk.seeds).length,
+          carriedOrder:Object.keys(blk.order).length};
+}
+
+/* §13.6. Viewing a closed block never writes to it. The disabled attribute on
+   the fields is the visible half; this is the half that catches every other
+   write path - check-off, swap, skip, note, warm-up, feedback - since the
+   rationale is that a mis-tap must not silently corrupt earlier evidence. */
+function refuseIfClosed(){ return !viewingActive(); }
+
+function bindBlock(id){
+  const blk = STORE.mesos[id];
+  if(!blk) return false;
+  const prog = PROGRAMS[blk.program] || PROGRAMS[FIRST_MESO];
+  if(!prog) return false;
+  VIEW_MESO = id; LOG = blk; PROGRAM = prog;
+  return true;
 }
 
 /* ---- load progression rule engine ----
@@ -932,6 +1036,29 @@ async function load(){
    week N reads week N−1, and §7/§7.1's deload cascades walk weeks 3, 2, 1.
    `step` must already include any per-exercise override. */
 const WEEK_RIR_TEXT = {1:"3", 2:"2", 3:"1", 4:"4–5"};
+
+/* §13.2 seeding. Pure: the outgoing block's weeks 1-3 for ONE exercise id,
+   plus whatever the new PROGRAM names as that exercise's start.
+
+   Authoring beats inference, so a PROGRAM start short-circuits before any
+   look-back. Week 4 is never read - seeding off a deload would open the new
+   block roughly 30% light. Empty loading weeks are walked back through the way
+   §1's reference week walks.
+
+   A mixed-load week has no `workingLoad` by §1's definition, so it yields no
+   seed rather than a guess. v1.9 does not cover that case; this is the literal
+   reading, not an invented rule. */
+function seedLoad(outgoingWeekSets, programStart){
+  if(programStart !== null && programStart !== undefined) return programStart;
+  for(let w = 3; w >= 1; w--){
+    const q = ((outgoingWeekSets && outgoingWeekSets[w]) || [])
+      .filter(s => typeof s.reps === "number" && s.reps > 0);
+    if(!q.length) continue;
+    const loads = [...new Set(q.map(s => s.weight))];
+    return loads.length === 1 ? loads[0] : null;
+  }
+  return null;
+}
 
 /* §1 reference week: the most recent prior week that actually holds sets. Normally
    the week before, but it steps back past ones skipped or never logged rather than
@@ -1251,6 +1378,8 @@ function warmSection(ex, ei){
 function renderDay(){
   $("days").innerHTML = exList().map((ex,ei)=>{
     const n = ex.sets[W-1];
+    // §13.6: fields in a closed block are disabled, not merely ignored.
+    const ro = viewingActive() ? "" : " disabled";
     const rows = Array.from({length:n},(_,si)=>{
       const c = LOG.sets[cell(W,D,ex.id,si)] || {};
       const prev = W>1 ? (LOG.sets[cell(W-1,D,ex.id,si)] || null) : null;
@@ -1262,11 +1391,11 @@ function renderDay(){
         <div class="setno">${si+1}</div>
         <div class="fieldwrap">
           <input type="number" inputmode="decimal" step="0.5" data-f="w" data-e="${ei}" data-s="${si}"
-            value="${c.weight??""}" placeholder="${ex.start!==null&&ex.start!==0?ex.start:""}">
+            value="${c.weight??""}" placeholder="${ex.start!==null&&ex.start!==0?ex.start:""}"${ro}>
           <span class="ghost">${ghost}</span>
         </div>
         <div class="fieldwrap">
-          <input type="number" inputmode="numeric" data-f="r" data-e="${ei}" data-s="${si}" value="${c.reps??""}">
+          <input type="number" inputmode="numeric" data-f="r" data-e="${ei}" data-s="${si}" value="${c.reps??""}"${ro}>
           <span class="ghost"></span>
         </div>
         <button class="chk" data-e="${ei}" data-s="${si}" aria-pressed="${!!c.done}" aria-label="Mark set ${si+1} done">
@@ -1738,6 +1867,7 @@ function closeSwapSheet(){ $("swapSheet").hidden = true; }
 document.addEventListener("click", e=>{
   const sb = e.target.closest(".swapBtn");
   if(sb){ openSwapSheet(exList()[sb.dataset.e]); return; }
+  if(refuseIfClosed() && e.target.closest(".daySkipOpt,.skipOpt,.opt")) return;   // §13.6
   const dsb = e.target.closest(".daySkipOpt");
   if(dsb){
     const k = `${W}|${dsb.dataset.daySkip}`;
@@ -1802,6 +1932,8 @@ document.addEventListener("click", e=>{
     STORE.timers.restStart = STORE.timers.restStart ? null : Date.now();
     save(); tickDash(); return;
   }
+  // §13.6: everything below this line writes to the block.
+  if(refuseIfClosed() && e.target.closest(".fb,.wplus,.chk,.noteDone")) return;
   const fbBtn = e.target.closest(".fb");
   if(fbBtn){
     const k = `${W}|${D}|${exList()[fbBtn.dataset.e].id}`;
@@ -1863,6 +1995,7 @@ document.addEventListener("click", e=>{
 });
 
 document.addEventListener("input", e=>{
+  if(refuseIfClosed()) return;                                                   // §13.6
   const inp = e.target;
   if(inp.dataset.wf){
     const k = warmKey(W, D, exList()[inp.dataset.e].id, inp.dataset.i);

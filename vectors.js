@@ -8,7 +8,7 @@
      document.head.appendChild(Object.assign(document.createElement("script"),
        {src: "vectors.js", onload: () => runVectors()}));
 
-   load-progression-spec.md §12 is the source of truth (spec v1.8). This file transcribes
+   load-progression-spec.md §12 is the source of truth (spec v1.9). This file transcribes
    that table; where they disagree, the table is correct and this file is
    wrong. Every row asserts class, outcome and exact text — including
    `class: null` on the short-circuit rows, which is what catches
@@ -198,7 +198,56 @@
     // first coverage of the assist INCOMPLETE string
     { n: 39, expect: {class: null, outcome: "INCOMPLETE", text: "repeat 40 assist — 2 of 3 sets logged"},
       input: {weekSets: {1: at(40, [14, 12])}, prescribed: 3, range: R10_15, step: 10,
-              loadSense: "assist", feedback: {effort: "right"}, currentWeek: 2} }
+              loadSense: "assist", feedback: {effort: "right"}, currentWeek: 2} },
+
+    /* v1.9 §13. Rows carrying `seed` run seedLoad(outgoing, programStart) first
+       and feed the result in as startLoad, so what is asserted is where the
+       seed came from. Pre-computing it would collapse 43, 44 and 45 into one
+       row that proves nothing.
+
+       `weekSets: {}` on every week-1 row is §13.3 itself: a new block holds no
+       prior weeks, because the boundary is structural - weekSets can only be
+       assembled from the bound block. */
+    { n: 40, expect: {class: null, outcome: "NO_DATA", text: "start 90"},
+      seed: {outgoing: {3: at(90, [10, 9, 8])}, programStart: null},
+      input: {weekSets: {}, prescribed: 3, range: R8_12, step: 5,
+              feedback: {}, currentWeek: 1} },
+
+    // authoring beats inference: a named start is not overridden by a seed
+    { n: 41, expect: {class: null, outcome: "NO_DATA", text: "start 100"},
+      seed: {outgoing: {3: at(90, [10, 9, 8])}, programStart: 100},
+      input: {weekSets: {}, prescribed: 3, range: R8_12, step: 5,
+              feedback: {}, currentWeek: 1} },
+
+    { n: 42, expect: {class: null, outcome: "NO_DATA", text: "find it — 15 reps, 3 in reserve"},
+      seed: {outgoing: {}, programStart: null},
+      input: {weekSets: {}, prescribed: 3, range: R10_15, step: 5,
+              feedback: {}, currentWeek: 1} },
+
+    // deload exclusion: week 4 is the only logged week, §13.2 refuses it
+    { n: 43, expect: {class: null, outcome: "NO_DATA", text: "find it — 15 reps, 3 in reserve"},
+      seed: {outgoing: {4: at(60, [12, 11, 10])}, programStart: null},
+      input: {weekSets: {}, prescribed: 3, range: R10_15, step: 5,
+              feedback: {}, currentWeek: 1} },
+
+    { n: 44, expect: {class: null, outcome: "NO_DATA", text: "start 90"},
+      seed: {outgoing: {1: at(80, [12, 11, 10]), 2: at(85, [12, 11, 10]), 3: at(90, [12, 11, 10])},
+             programStart: null},
+      input: {weekSets: {}, prescribed: 3, range: R8_12, step: 5,
+              feedback: {}, currentWeek: 1} },
+
+    // walks back past an empty week 3, and still refuses week 4
+    { n: 45, expect: {class: null, outcome: "NO_DATA", text: "start 85"},
+      seed: {outgoing: {2: at(85, [12, 11, 10]), 3: [], 4: at(60, [12, 11, 10])}, programStart: null},
+      input: {weekSets: {}, prescribed: 3, range: R8_12, step: 5,
+              feedback: {}, currentWeek: 1} },
+
+    /* Guard on §13.3. The boundary stops a reference week leaving a block, NOT
+       weeks referencing each other inside one. An implementation that
+       over-applies it returns NO_DATA here instead of progressing. */
+    { n: 46, expect: {class: "P_PASS", outcome: "ADD", text: "90 ✓ → try 95"},
+      input: {weekSets: {1: at(90, [12, 11, 10])}, prescribed: 3, range: R8_12, step: 5,
+              feedback: {effort: "right"}, currentWeek: 2} }
   ];
 
   window.VECTORS = VECTORS;
@@ -207,7 +256,14 @@
     const q = v => JSON.stringify(v);
     const results = VECTORS.map(v => {
       let got;
-      try { got = suggestLoad(v.input); }
+      try {
+        // §13.2 rows resolve their own startLoad through the seeding rule.
+        const input = v.seed
+          ? Object.assign({}, v.input,
+              {startLoad: seedLoad(v.seed.outgoing, v.seed.programStart)})
+          : v.input;
+        got = suggestLoad(input);
+      }
       catch (e) { return {n: v.n, ok: false, detail: `threw ${e.message}`}; }
       const bad = [];
       if (got.class !== v.expect.class)     bad.push(`class ${q(got.class)} ≠ ${q(v.expect.class)}`);
