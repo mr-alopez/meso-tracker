@@ -345,6 +345,8 @@
   .voltbl .h{color:var(--ink-3);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
   .bar{height:6px;background:var(--signal);display:inline-block;vertical-align:middle}
   .foot{padding:22px 14px 96px;font-size:12px;color:var(--ink-3);line-height:1.5}
+  .build{margin-top:16px;font-family:var(--mono);font-size:11px;color:var(--ink-3);opacity:.7;
+    letter-spacing:.04em}
   .foot button{background:none;border:none;color:var(--ink-3);font-size:12px;text-decoration:underline;padding:0;cursor:pointer;font-family:var(--sans)}
   .saving{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);
     font-family:var(--mono);font-size:11px;letter-spacing:.08em;padding:7px 14px;border-radius:2px;opacity:0;
@@ -393,6 +395,7 @@
     <button id="importBtn">Import data</button> ·
     <button id="resetBtn">Clear all logged data</button>
     <input type="file" id="importFile" accept=".json,application/json" hidden>
+    <div class="build" id="buildLine"></div>
   </div>
 </div>
 <div class="saving" id="toast">SAVED</div>
@@ -743,6 +746,7 @@ function resolveEx(p, dayKey){
    Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
 const STORE_KEY = "meso-tracker";
 const SCHEMA_VERSION = 13;
+const SPEC_VERSION = "1.9";      // load-progression-spec.md; bump both together
 const FIRST_MESO = "meso01";
 // The block being viewed. Equal to settings.activeMeso except while looking at
 // a closed block, which sec.13.6 makes read-only rather than merely non-default.
@@ -1027,7 +1031,8 @@ function bindBlock(id){
 }
 
 /* ---- load progression rule engine ----
-   Encodes load-progression-spec.md v1.8 verbatim. Pure function: plain data
+   Encodes load-progression-spec.md verbatim — SPEC_VERSION names which
+   revision. Pure function: plain data
    in, the §5.1 contract out — {class, outcome, load, text}. No DOM, no
    storage, no globals; callable from a console.
    §5.1 invariant: `class` is non-null if and only if `outcome` came from the
@@ -2046,7 +2051,27 @@ document.addEventListener("input", e=>{
   }
 });
 
-(async ()=>{ await load(); applyTheme(); openAtNextUnfinished(); render(); syncWakeLock(); })();
+/* Which build is this phone actually running?
+
+   The stamp is read from the served document's Last-Modified rather than a
+   constant, because a constant is precisely the thing that goes stale - the
+   engine's own header comment claimed v1.8 for a day after the spec moved to
+   1.9. This cannot drift: it reports the file the browser is running, and when
+   the service worker is still serving last week's copy it shows last week's
+   date, which is the one question worth answering when the app looks wrong
+   after a deploy. */
+function buildStamp(){
+  const d = new Date(document.lastModified);
+  if(isNaN(d.getTime())) return "unknown";
+  return d.toLocaleDateString("en-GB", {day:"numeric", month:"short"}) + " " +
+         d.toLocaleTimeString("en-GB", {hour:"2-digit", minute:"2-digit", hour12:false});
+}
+
+(async ()=>{
+  await load(); applyTheme(); openAtNextUnfinished(); render(); syncWakeLock();
+  $("buildLine").textContent =
+    `build ${buildStamp()} · schema ${SCHEMA_VERSION} · spec ${SPEC_VERSION}`;
+})();
 
 // Offline support. Serves from cache instantly, refreshes in the background;
 // updates apply on the next launch. No-ops under file:// where SW is unsupported.
