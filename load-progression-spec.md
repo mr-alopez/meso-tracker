@@ -1,5 +1,10 @@
 # Load Progression Spec — meso-tracker
 
+Version 1.8 · 30 Aug 2026 — rules on whether a skip suppresses logged sets. **§1's
+reference week is unchanged**; the amendment records that as decided and corrects the
+`INCOMPLETE` family of strings, which misattributed cause. Strings and documentation only —
+no schema change, no stored data, no engine logic change. Supersedes v1.7, below.
+
 Version 1.7 · 27 Aug 2026 — §2 models the dumbbell rack. `step` is derived from the loads
 that actually exist rather than assumed uniform, because the rack runs 10, 12, 15, 20 — the 12
 makes the increment depend on where you are standing. This unstalls the lateral raise without
@@ -67,6 +72,33 @@ further from failure and the suggestion errs easy. No compensation is applied. C
 the RIR gap would stack a reps-per-RIR conversion on top of §4's reps-per-percent heuristic,
 two approximations multiplied together, on a path that only fires after a skipped week. The
 cost of erring easy is one light suggestion that §8 corrects the following week.
+
+**A skip does not hide sets that were already logged.** The reference week walks back only
+where nothing qualifying was recorded. This holds for a single-exercise skip and a whole-day
+skip alike; they are the same rule seen at different scales.
+
+*Decided (v1.8), not deferred. Do not re-litigate without new evidence.* Rationale, recorded
+so the reasoning survives:
+
+- **Skip and delete already express different things.** Clearing the fields removes sets from
+  evaluation entirely. That gesture is available and unambiguous. "I left the gym" and
+  "disregard what I did" are different statements, and only the second is about the data.
+  Making a skip suppress logged sets would collapse the two and remove the ability to say the
+  first alone.
+- **Suppression is worse-informed.** Where a partial week exists, it is the most recent
+  evidence about that exercise at that load. Discarding it to read an older week substitutes
+  stale information for fresh, and surfaces a reference load the athlete has since moved past.
+- **`INCOMPLETE` already declines to progress**, which is the conservatism suppression would
+  be reaching for. It is the floor: fuller data can produce `ADD`, partial data cannot.
+- **Per-exercise reference weeks may diverge within one day.** Exercises completed before a day
+  was abandoned read that week; the rest read further back. This is correct rather than merely
+  tolerated — each exercise progresses on its own evidence, and the day is not an evaluative
+  unit. Uniformity is not a goal worth paying information for.
+
+**Watch item (v1.8), not a `[revisit]`:** §1 ignores the `done` flag, so reps typed but not
+performed still count, and an abandoned session makes that marginally more likely. Retained
+unchanged — forgetting to tick checkmarks is the higher-frequency error, and having it erase a
+logged session is the worse failure. Actionable only if a real instance occurs.
 
 **Warm-up sets are recorded but never read here.** They live in their own store and no rule in
 this document consults them. That isolation is the point: a ramp logged as working sets is
@@ -282,7 +314,7 @@ Load is ignored entirely. Progression is by reps.
 | 1 | Current week is 4 | `DELOAD_BW` | `deload — stop 4–5 shy of failure` |
 | 2 | `feedback.pain` set last week | `PAIN_BW` | `pain flagged — go easier or swap the movement` |
 | 3 | No qualifying sets in prior week | `NO_DATA_BW` | `2 shy of failure` |
-| 4 | `n < prescribed` | `INCOMPLETE_BW` | `beat {last.reps} — finish all {prescribed} sets` |
+| 4 | `n < prescribed` | `INCOMPLETE_BW` | `beat {last.reps} — {n} of {prescribed} sets logged` |
 | 5 | Otherwise | `BW_PROGRESS` | `beat {last.reps} on the last set` |
 
 Row 3 is authoritative: bodyweight with no history returns `2 shy of failure`, **not**
@@ -302,7 +334,7 @@ reads reps only and is sense-agnostic.
 | 2 | `feedback.pain` set last week | `PAIN_ASSIST` | `pain flagged — more assistance or swap the movement` |
 | 3 | No qualifying sets in prior week | `NO_DATA` | `find it — {top} reps, {rir} in reserve` |
 | 4 | `mixedLoad` | `MIXED` | `pick one assist level and hold it` |
-| 5 | `n < prescribed` | `INCOMPLETE` | `repeat {load} assist — finish all {prescribed} sets` |
+| 5 | `n < prescribed` | `INCOMPLETE` | `repeat {load} assist — {n} of {prescribed} sets logged` |
 | 6 | Otherwise | §3 classification → §8 matrix, gate skipped | see below |
 
 Matrix text for `assist`:
@@ -453,7 +485,7 @@ from an ordinary hold.
 | `NO_DATA` (no start weight) | No prior sets, no `start` | `find it — {top} reps, {rir} in reserve` |
 | `PAIN` | Prior week pain flag, sense `weight` | `pain flagged — go lighter or swap the movement` |
 | `MIXED` | Loads differ within the exercise | `pick one weight and hold it` |
-| `INCOMPLETE` | Fewer qualifying sets than prescribed | `repeat {load} — finish all {prescribed} sets` |
+| `INCOMPLETE` | Fewer qualifying sets than prescribed | `repeat {load} — {n} of {prescribed} sets logged` |
 
 The `PAIN` text carries **no load number**, which resolves the mixed-load case by making
 it moot. Naming a specific weight was never useful here — the suggestion is to go
@@ -545,12 +577,12 @@ Every vector must pass. Unless stated, `prescribed` is 3 and effort is `right`.
 | 9 | BB 65, range 8–12, sets 12/11/10, presc 3, pain = true | — | `PAIN` | `pain flagged — go lighter or swap the movement` |
 | 10 | Week 4, week-3 load 90, step 5 | — | `DELOAD` | `60 — 4–5 RIR, stop early` |
 | 11 | `pushup`, prior last set 12, presc 2, 2 sets logged | — | `BW_PROGRESS` | `beat 12 on the last set` |
-| 12 | BB 85, 8–12, 12/11 (2 of 3 logged) | — | `INCOMPLETE` | `repeat 85 — finish all 3 sets` |
+| 12 | BB 85, 8–12, 12/11 (2 of 3 logged) | — | `INCOMPLETE` | `repeat 85 — 2 of 3 sets logged` |
 | 13 | `pushup`, week 1, no prior data | — | `NO_DATA_BW` | `2 shy of failure` |
 | 14 | `pushup`, week 2, prior last set 15, presc 2, logged 2 | — | `BW_PROGRESS` | `beat 15 on the last set` |
 | 15 | `pushup`, week 4 | — | `DELOAD_BW` | `deload — stop 4–5 shy of failure` |
 | 16 | `pushup`, prior week pain = true | — | `PAIN_BW` | `pain flagged — go easier or swap the movement` |
-| 17 | `pushup`, presc 2, 1 set logged, last 12 | — | `INCOMPLETE_BW` | `beat 12 — finish all 2 sets` |
+| 17 | `pushup`, presc 2, 1 set logged, last 12 | — | `INCOMPLETE_BW` | `beat 12 — 1 of 2 sets logged` |
 | 18 | `pullup_assisted` 40, 10–15, 15/13/11, step 10 | `P_PASS` | `ADD` | `40 ✓ → drop assist to 30` |
 | 19 | `pullup_assisted` 10, 10–15, 15/14/12, step 10 | `P_PASS` | `ADD` | `10 ✓ → try it unassisted` |
 | 20 | `pullup_assisted` 0, 10–15, 15/14/12 | `P_PASS` | `ADD` | `unassisted — switch to Pull-Up` |
@@ -568,6 +600,11 @@ Every vector must pass. Unless stated, `prescribed` is 3 and effort is `right`.
 | 32 | Rack 10/12/15/20, load 10, range 12–20, sets 20/18/16, easy, presc 3 | `P_PASS` | `ADD` | `10 ✓ → try 12` |
 | 33 | Rack 10/12/15/20, load 12, range 12–20, sets 20/18/16, presc 3 | `P_GATED` | `HOLD_GATE` | `repeat 12 — need 21+ before 15` |
 | 34 | Rack 10/12/15/20, load 15, range 12–20, sets 10/9/8, presc 3 | `P_FAIL` | `REDUCE` | `drop to 12 — 12+ clean` |
+| 35 | Wk 3. Wk 2 holds no qualifying sets. Wk 1 BB 85, 8–12, 12/11/10, right, presc 3 | `P_PASS` | `ADD` | `85 ✓ → try 90` |
+| 36 | Wk 3. Wk 2 skipped, 2 of 3 logged at 90, reps 9/8, presc 3, 8–12. Wk 1 as #35 | — | `INCOMPLETE` | `repeat 90 — 2 of 3 sets logged` |
+| 37 | Wk 3. Wk 2 **not** skipped, same 2 of 3 at 90, reps 9/8. Wk 1 as #35 | — | `INCOMPLETE` | `repeat 90 — 2 of 3 sets logged` |
+| 38 | Wk 3. Wk 2 skipped, 3 of 3 logged at 90, reps 12/11/10, right, presc 3, 8–12 | `P_PASS` | `ADD` | `90 ✓ → try 95` |
+| 39 | `pullup_assisted` 40, 10–15, 2 of 3 logged, reps 14/12, presc 3 | — | `INCOMPLETE` | `repeat 40 assist — 2 of 3 sets logged` |
 
 Vectors 1–12 originate with v1.0/v1.1. **Vector 9's text was amended by v1.2 §9**, which
 removed the load number from `PAIN`. **Vector 11 was amended by v1.3**, which supplied the
@@ -577,6 +614,16 @@ the `BW_PROGRESS` outcome name. Vectors 1–8, 10 and 12 are unchanged: all are 
 §7's cascade, never reaching a later rung or §7.1. **v1.4 split every row's `Expected` cell**
 across the class and outcome columns — vectors 1, 3, 4 and 5 had stated a class where the
 other rows stated an outcome — and changed no expectation.
+
+**v1.8 changed the text of vectors 12 and 17 only** — the `INCOMPLETE` family now states the
+evidence rather than naming a failure to finish. No class or outcome changed on any existing
+row. Vectors 35–39 are new. **36 and 37 are a matched pair and must return byte-identical
+results**: that is the v1.8 ruling made mechanical. Note that `skipped` is not an engine
+input at all, so at the engine boundary the pair is one input expressed twice; if the rows ever
+diverge, someone has wired a skip flag into evaluation, which is exactly what they exist to
+catch. **38 is the row most likely to be got wrong** by an implementation that treats a skip as
+suppression — a complete week under a skip must progress normally. **39 is the first coverage
+of the `assist` `INCOMPLETE` string**, which had none.
 
 Vectors 9 and 22 assert the same text from different inputs — 9 from clean loads, 22 from
 mixed. Both are retained: together they demonstrate that `PAIN` overrides regardless of
