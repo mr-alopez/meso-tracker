@@ -159,8 +159,11 @@
   .card.skipped .suggest, .card.skipped .cue{display:none}
   .exhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;cursor:grab;
     user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-  .grip{flex:none;padding:5px 2px 5px 12px}
-  .grip svg{width:10px;height:16px;fill:var(--line);display:block}
+  /* Now the only control in the header, so it stops being a 24px glyph you
+     have to hunt for and becomes a 44px target you can find by feel. */
+  .grip{flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--line-2);border-radius:2px;padding:0}
+  .grip svg{width:13px;height:21px;fill:var(--line);display:block}
   /* The slot the card came from, as a slim dashed gap rather than a faded
      full-height card. At 600-750px tall a faded card is invisible: the gap has
      to be short enough that the neighbours around it stay on screen. */
@@ -183,7 +186,9 @@
      back under the bar or off the bottom - which is the field being "a hair
      cut off" once the keyboard is up. */
   .wrap.typing{scroll-snap-type:none}
-  .headbtns{display:flex;align-items:center;gap:5px;flex:none}
+  /* Video and swap live on the prescription line now, not the header - the
+     header is the title and the drag handle, nothing else. */
+  .rowbtns{display:flex;align-items:center;gap:6px;flex:none}
   .swapBtn,.vidBtn{appearance:none;border:1px solid var(--line-2);background:transparent;border-radius:2px;
     width:34px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;
     text-decoration:none}
@@ -209,9 +214,12 @@
     font-size:11px;font-family:var(--mono);font-weight:600}
   .opt.skipOpt{margin-top:14px;border-color:var(--deload)}
   .opt.skipOpt .oname{color:var(--deload)}
-  .tag{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
-  .exname{font-size:19px;font-weight:700;letter-spacing:-.01em;margin:1px 0 2px}
-  .prescribe{font-family:var(--mono);font-size:13px;color:var(--signal);margin-bottom:10px}
+  .tag{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+  /* The name was 19px while the active set's number is 21px - the title read
+     smaller than the data under it. It leads the card, so it leads the scale. */
+  .exname{font-size:23px;font-weight:700;letter-spacing:-.015em;margin:2px 0 2px;line-height:1.15}
+  .prescriberow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+  .prescribe{font-family:var(--mono);font-size:13px;color:var(--signal)}
   .cue{font-size:13px;color:var(--ink-2);background:var(--cue-bg);border-left:2px solid var(--line);
     padding:7px 9px;margin:0 0 10px}
 
@@ -1237,7 +1245,15 @@ function renderDay(){
           <div class="tag">${skipped?'Skipped today':`${ex.muscle}${ex.swapped?' · swapped in':''}`}</div>
           <div class="exname">${ex.name}</div>
         </div>
-        <div class="headbtns">
+        <div class="grip" aria-hidden="true"><svg viewBox="0 0 10 16">
+          <circle cx="2.5" cy="2" r="1.6"/><circle cx="7.5" cy="2" r="1.6"/>
+          <circle cx="2.5" cy="8" r="1.6"/><circle cx="7.5" cy="8" r="1.6"/>
+          <circle cx="2.5" cy="14" r="1.6"/><circle cx="7.5" cy="14" r="1.6"/>
+        </svg></div>
+      </div>
+      <div class="prescriberow">
+        <div class="prescribe">${n} × ${ex.reps}${ex.unit?` · ${ex.unit}`:""} · ${weekObj().rir} RIR</div>
+        <div class="rowbtns">
           <a class="vidBtn" href="https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + " form")}"
              target="_blank" rel="noopener noreferrer" aria-label="Search YouTube for ${ex.name} form">
             <svg viewBox="0 0 24 24"><polygon points="8,5 19,12 8,19"/></svg>
@@ -1245,14 +1261,8 @@ function renderDay(){
           <button class="swapBtn" data-e="${ei}" aria-label="Swap ${ex.name} for another ${LIBRARY.slots[ex.slot].label.toLowerCase()} exercise">
             <svg viewBox="0 0 24 24"><path d="M4 7h13M14 3l4 4-4 4M20 17H7M10 13l-4 4 4 4"/></svg>
           </button>
-          <div class="grip" aria-hidden="true"><svg viewBox="0 0 10 16">
-            <circle cx="2.5" cy="2" r="1.6"/><circle cx="7.5" cy="2" r="1.6"/>
-            <circle cx="2.5" cy="8" r="1.6"/><circle cx="7.5" cy="8" r="1.6"/>
-            <circle cx="2.5" cy="14" r="1.6"/><circle cx="7.5" cy="14" r="1.6"/>
-          </svg></div>
         </div>
       </div>
-      <div class="prescribe">${n} × ${ex.reps}${ex.unit?` · ${ex.unit}`:""} · ${weekObj().rir} RIR</div>
       ${ex.cue?`<div class="cue">${ex.cue}</div>`:""}
       <div class="suggest ${/^(DELOAD|PAIN)/.test(sug.outcome)?"warn":""}">${sug.text}</div>
       <div class="hdr"><div></div><div>Weight</div><div>Reps</div><div></div></div>
