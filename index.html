@@ -297,6 +297,9 @@
     font-family:var(--mono);font-size:20px;font-weight:700;line-height:1;width:46px;
     cursor:pointer;padding:0}
   .row.warm{border-top:none}
+  .row.noweight{box-shadow:inset 0 0 0 1px var(--deload)}
+  .row.noweight .setno{color:var(--deload)}
+  .row.noweight .ghost{color:var(--deload)}
   .row.warm .setno{color:var(--deload)}
   .row.warm input[type=number]{border-color:var(--line-2)}
 
@@ -1416,12 +1419,16 @@ function renderDay(){
       if(prev && (prev.weight||prev.reps)) ghost = `last ${prev.weight||"–"}×${prev.reps||"–"}`;
       else if(W===1 && ex.start) ghost = `start ${ex.start}`;
       else if(W===1 && ex.start===null) ghost = `find it`;
-      return `<div class="row ${c.done?'logged':''}" data-r="${ei}-${si}">
+      /* Done, weighted movement, still no weight - so there was no suggestion
+         to confirm either (mixed loads, pain, or a first-timer with no start).
+         Flag it here rather than let it go quiet for a week. */
+      const noWeight = c.done && c.weight == null && ex.loadSense !== "none";
+      return `<div class="row ${c.done?'logged':''} ${noWeight?'noweight':''}" data-r="${ei}-${si}">
         <div class="setno">${si+1}</div>
         <div class="fieldwrap">
           <input type="number" inputmode="decimal" step="0.5" data-f="w" data-e="${ei}" data-s="${si}"
             value="${c.weight??""}" placeholder="${hint}"${ro}>
-          <span class="ghost">${ghost}</span>
+          <span class="ghost">${noWeight ? "no weight" : ghost}</span>
         </div>
         <div class="fieldwrap">
           <input type="number" inputmode="numeric" data-f="r" data-e="${ei}" data-s="${si}" value="${c.reps??""}"${ro}>
@@ -1436,7 +1443,7 @@ function renderDay(){
     const noteVal = LOG.notes[`${W}|${D}|${ex.id}`] || "";
     const fb = LOG.feedback[`${W}|${D}|${ex.id}`] || {};
     const skipped = isSkipped(W, D, ex.id);
-    return `<div class="card ${allDone?'done':''} ${ex.swapped?'swapped':''} ${skipped?'skipped':''}" data-ex="${ex.programId}">
+    return `<div class="card ${allDone?'done':''} ${ex.swapped?'swapped':''} ${skipped?'skipped':''}" data-ex="${ex.programId}" data-sug-load="${Number.isFinite(sug.load)?sug.load:""}">
       <div class="exhead">
         <div>
           <div class="tag">${skipped?'Skipped today':`${ex.muscle}${ex.swapped?' · swapped in':''}`}</div>
@@ -1991,9 +1998,28 @@ document.addEventListener("click", e=>{
   if(nd){ const ta = nd.parentNode.querySelector(".note"); if(ta) ta.blur(); return; }
   const chk = e.target.closest(".chk");
   if(chk){
-    const k = cell(W,D,exList()[chk.dataset.e].id,chk.dataset.s);
+    const ex = exList()[chk.dataset.e];
+    const k = cell(W,D,ex.id,chk.dataset.s);
     LOG.sets[k] = LOG.sets[k] || {};
     const nowDone = !LOG.sets[k].done;
+    /* Ticking a set means "this happened as shown", and the weight shown is the
+       suggested one - so confirm it rather than leaving the field empty. This is
+       the failure that cost a week of progressions: the suggestion sat greyed in
+       the box looking like an entered value, reps got typed, the weight never
+       did, and every one of those exercises read as MIXED the following week.
+
+       Only fills an EMPTY field, so a typed weight always wins, and only on the
+       way to done - unchecking is a correction and leaves the number alone,
+       since by then it is recorded data. The suggested load is per exercise,
+       not per set, which is the point: all the sets sat at one weight. */
+    // "" means there was no load to suggest. Number("") is 0, not NaN, so the
+    // empty case has to be caught before the cast or every unsuggestable set
+    // gets recorded at zero - which is the fabrication this exists to avoid.
+    // A literal 0 is meaningful (assist reaching unassisted) and is kept.
+    const rawSug = chk.closest(".card").dataset.sugLoad;
+    const sug = rawSug === "" ? NaN : Number(rawSug);
+    if(nowDone && LOG.sets[k].weight == null && Number.isFinite(sug))
+      LOG.sets[k].weight = sug;
     LOG.sets[k].done = nowDone;
     activeOverride = null;              // let the marker advance to the next set
     // Finishing a set is the moment rest begins, so it restarts from zero.
