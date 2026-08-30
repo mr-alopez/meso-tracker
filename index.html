@@ -124,6 +124,9 @@
     padding:10px 0;border-radius:2px;cursor:pointer}
   .seg button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
   .seg.weeks button[aria-pressed="true"].dl{background:var(--deload);border-color:var(--deload)}
+  /* Struck through rather than merely dimmed: the current day is already the
+     filled tab, so dimming alone would not read as "set aside" on it. */
+  .seg.days button.skipped{opacity:.55;text-decoration:line-through;text-decoration-thickness:1px}
   .daymeta{font-size:12px;color:var(--ink-3);padding:0 0 8px;font-family:var(--mono)}
 
   /* ---- sticky dashboard: session · rest · sets left ---- */
@@ -214,6 +217,9 @@
     font-size:11px;font-family:var(--mono);font-weight:600}
   .opt.skipOpt{margin-top:14px;border-color:var(--deload)}
   .opt.skipOpt .oname{color:var(--deload)}
+  /* Sole option in the day sheet, so no separating margin above it. */
+  .opt.daySkipOpt{border-color:var(--deload)}
+  .opt.daySkipOpt .oname{color:var(--deload)}
   .tag{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
   /* The name was 19px while the active set's number is 21px - the title read
      smaller than the data under it. It leads the card, so it leads the scale. */
@@ -678,6 +684,11 @@ function resolveEx(p, dayKey){
    sessionAccum + (sessionStart ? now - sessionStart : 0): banked time plus the
    current run. sessionStart null with sessionAccum > 0 means paused.
    sets:  "week|day|exercise id|setIdx" -> {weight, reps, done}  (weight/reps: number or null)
+   daySkips: "week|day" -> true. A whole session set aside. It is a blanket
+   over the day rather than a bulk write of the map below: the individual
+   skips underneath are left untouched, so putting the day back restores
+   exactly what was already set aside, and the blanket still covers an
+   exercise that gets swapped while the day is skipped.
    skips:   "week|day|exercise id" -> true. An exercise deliberately set aside
    for that day: its sets stop counting toward the day being finished, and it
    keeps no data, so the following week reads through it to the last week that
@@ -698,7 +709,7 @@ function resolveEx(p, dayKey){
    renames, reorders and swaps never mislabel old logs.
    Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
 const STORE_KEY = "meso-tracker";
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 const MESO_ID = "meso01";
 
 /* v3 -> v4: exact display-name -> library-id table for every exercise that has
@@ -798,7 +809,10 @@ const MIGRATIONS = {
     return s;
   },
   // v11 added skipped exercises.
-  10: s => { Object.values(s.mesos).forEach(m => { m.skips = m.skips || {}; }); return s; }
+  10: s => { Object.values(s.mesos).forEach(m => { m.skips = m.skips || {}; }); return s; },
+  // v12 added skipped days. Purely additive: an absent map is an empty one,
+  // so nothing already logged changes meaning.
+  11: s => { Object.values(s.mesos).forEach(m => { m.daySkips = m.daySkips || {}; }); return s; }
 };
 
 function freshStore(){
@@ -874,7 +888,7 @@ async function load(){
   }
   // A rest clock still running hours later was forgotten, not rested.
   if(STORE.timers.restStart && Date.now() - STORE.timers.restStart > 6*3600*1000) STORE.timers.restStart = null;
-  if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}, order:{}, swaps:{}, feedback:{}, warmups:{}, skips:{}};
+  if(!STORE.mesos[MESO_ID]) STORE.mesos[MESO_ID] = {sets:{}, notes:{}, order:{}, swaps:{}, feedback:{}, warmups:{}, skips:{}, daySkips:{}};
   LOG = STORE.mesos[MESO_ID];
   LOG.sets = LOG.sets || {};
   LOG.notes = LOG.notes || {};
@@ -883,6 +897,7 @@ async function load(){
   LOG.feedback = LOG.feedback || {};
   LOG.warmups = LOG.warmups || {};
   LOG.skips = LOG.skips || {};
+  LOG.daySkips = LOG.daySkips || {};
 }
 
 /* ---- load progression rule engine ----
@@ -1152,7 +1167,8 @@ function renderHeader(){
   $("weekSeg").innerHTML = PROGRAM.weeks.map(w=>
     `<button data-w="${w.n}" class="${w.n===4?'dl':''}" aria-pressed="${w.n===W}">Wk ${w.n}</button>`).join("");
   $("daySeg").innerHTML = PROGRAM.days.map(d=>
-    `<button data-d="${d.key}" aria-pressed="${d.key===D}">${d.label}</button>`).join("");
+    `<button data-d="${d.key}" aria-pressed="${d.key===D}"${
+      dayIsSkipped(W, d.key) ? ' class="skipped"' : ""}>${d.label}</button>`).join("");
   $("rirLabel").innerHTML = `Target RIR <b>${weekObj().rir}</b>`;
   $("dayFocus").textContent = dayObj().focus;
   $("bannerSlot").innerHTML = weekObj().note ? `<div class="banner">${weekObj().note}</div>` : "";
@@ -1307,7 +1323,12 @@ const fmtClock = ms => {
   return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 };
 
-const isSkipped = (w, dayKey, exId) => !!LOG.skips[`${w}|${dayKey}|${exId}`];
+const dayIsSkipped = (w, dayKey) => !!LOG.daySkips[`${w}|${dayKey}`];
+// Every consumer of "is this set aside" already routes through here - card
+// rendering, the sets-left count, dayComplete and the swap sheet - so a day
+// skip needs to reach exactly one line to reach all of them.
+const isSkipped = (w, dayKey, exId) =>
+  dayIsSkipped(w, dayKey) || !!LOG.skips[`${w}|${dayKey}|${exId}`];
 
 function setsLeft(){
   let left = 0;
@@ -1370,9 +1391,13 @@ function tickDash(){
 
 function renderDash(){
   const n = setsLeft();
+  const off = dayIsSkipped(W, D);
   $("setsLeft").textContent = n;
-  $("setsCell").classList.toggle("done", n === 0);
-  $("setsCell").querySelector(".dlabel").textContent = n === 0 ? "Day done" : "Sets left";
+  // Green is the colour of work finished. A day you set aside reaches zero
+  // without earning it, so it reads neutral.
+  $("setsCell").classList.toggle("done", n === 0 && !off);
+  $("setsCell").querySelector(".dlabel").textContent =
+    n === 0 ? (off ? "Day skipped" : "Day done") : "Sets left";
   tickDash();
 }
 
@@ -1638,14 +1663,46 @@ function openSwapSheet(ex){
       ${spinal}
     </button>`;
   }).join("");
-  const skipped = isSkipped(W, D, ex.id);
-  $("swapOpts").insertAdjacentHTML("beforeend",
-    `<button class="opt skipOpt" data-skip="${ex.programId}">
-      <div class="oname">${skipped ? "Put it back" : "Skip it today"}</div>
-      <div class="ometa">${skipped
-        ? "counts toward the day again"
-        : "stops counting toward the day; next week still reads your last real numbers"}</div>
-    </button>`);
+  // isSkipped() is true here for a day skip too, but toggling this exercise's
+  // own key would not lift the blanket - so when the day is off, offer the undo
+  // that actually works.
+  const dayOff = dayIsSkipped(W, D);
+  const skipped = !!LOG.skips[`${W}|${D}|${ex.id}`];
+  $("swapOpts").insertAdjacentHTML("beforeend", dayOff
+    ? `<button class="opt daySkipOpt" data-day-skip="${D}">
+        <div class="oname">Put the whole day back</div>
+        <div class="ometa">the entire day is set aside — this restores all of it</div>
+      </button>`
+    : `<button class="opt skipOpt" data-skip="${ex.programId}">
+        <div class="oname">${skipped ? "Put it back" : "Skip it today"}</div>
+        <div class="ometa">${skipped
+          ? "counts toward the day again"
+          : "stops counting toward the day; next week still reads your last real numbers"}</div>
+      </button>`);
+  $("swapSheet").hidden = false;
+}
+
+/* ---- setting a whole day aside ----
+   Long-press a day tab. Stored as one blanket key rather than a skip written
+   onto each exercise, which buys two things: putting the day back leaves any
+   exercise you had already set aside on its own still set aside, and the
+   blanket keeps covering an exercise you swap while the day is off.
+
+   Nothing reaches the rule engine. A skipped day informs next week exactly as
+   a skipped exercise does - by leaving no logged sets behind, so the reference
+   week walks back past it (spec sec.1). No spec change, no new vectors. */
+function openDaySheet(dayKey){
+  const day = PROGRAM.days.find(x => x.key === dayKey);
+  if(!day) return;
+  const off = dayIsSkipped(W, dayKey);
+  $("swapTitle").textContent = `${day.label} · week ${W} — whole day`;
+  $("swapOpts").innerHTML =
+    `<button class="opt daySkipOpt" data-day-skip="${dayKey}">
+      <div class="oname">${off ? "Put the day back" : "Skip the whole day"}</div>
+      <div class="ometa">${off
+        ? "every exercise on it counts toward the day again"
+        : "sets every exercise aside; next week still reads your last real numbers"}</div>
+    </button>`;
   $("swapSheet").hidden = false;
 }
 
@@ -1654,6 +1711,13 @@ function closeSwapSheet(){ $("swapSheet").hidden = true; }
 document.addEventListener("click", e=>{
   const sb = e.target.closest(".swapBtn");
   if(sb){ openSwapSheet(exList()[sb.dataset.e]); return; }
+  const dsb = e.target.closest(".daySkipOpt");
+  if(dsb){
+    const k = `${W}|${dsb.dataset.daySkip}`;
+    if(LOG.daySkips[k]) delete LOG.daySkips[k]; else LOG.daySkips[k] = true;
+    save(); closeSwapSheet(); render(); renderDash();
+    return;
+  }
   const skipBtn = e.target.closest(".skipOpt");
   if(skipBtn){
     const ex = exList().find(x => x.programId === skipBtn.dataset.skip);
@@ -1695,7 +1759,11 @@ document.addEventListener("click", e=>{
   const wb = e.target.closest("#weekSeg button");
   if(wb){ W = +wb.dataset.w; activeOverride = null; rememberPlace(); render(); scroller().scrollTo(0,0); return; }
   const db = e.target.closest("#daySeg button");
-  if(db){ D = db.dataset.d; activeOverride = null; rememberPlace(); render(); scroller().scrollTo(0,0); return; }
+  if(db){
+    // A hold has already opened the day sheet; do not also navigate there.
+    if(daySegLongFired){ daySegLongFired = false; return; }
+    D = db.dataset.d; activeOverride = null; rememberPlace(); render(); scroller().scrollTo(0,0); return;
+  }
   // Session: tap cycles start / pause / resume. A long press zeroes it, and
   // swallows the click the browser fires afterwards.
   if(e.target.closest("#sessBtn")){
@@ -1761,7 +1829,8 @@ document.addEventListener("click", e=>{
   if(e.target.id==="importBtn"){ $("importFile").click(); return; }
   if(e.target.id==="resetBtn"){
     if(confirm("Clear every logged weight, rep and note in this meso? The program itself stays.")){
-      LOG.sets = {}; LOG.notes = {}; LOG.warmups = {}; LOG.skips = {}; save(); render();
+      LOG.sets = {}; LOG.notes = {}; LOG.warmups = {}; LOG.skips = {}; LOG.daySkips = {};
+      save(); render();
     }
   }
 });
@@ -1822,6 +1891,29 @@ async function syncWakeLock(){
 }
 document.addEventListener("visibilitychange", keepAwake);
 document.addEventListener("pointerdown", keepAwake);
+
+/* Holding a day tab opens its sheet. Holding Wednesday while Monday is on
+   screen sets Wednesday aside without navigating to it - the tab you held is
+   the day you meant, whether or not you are standing on it. */
+let daySegHold = null, daySegLongFired = false, daySegAt = null;
+const cancelDaySegHold = () => { clearTimeout(daySegHold); daySegHold = null; };
+$("daySeg").addEventListener("pointerdown", e => {
+  const b = e.target.closest("button");
+  if(!e.isPrimary || !b) return;
+  daySegLongFired = false; daySegAt = {x: e.clientX, y: e.clientY};
+  daySegHold = setTimeout(() => {
+    daySegHold = null; daySegLongFired = true;
+    openDaySheet(b.dataset.d);
+    if(navigator.vibrate) navigator.vibrate(20);
+  }, 550);
+});
+$("daySeg").addEventListener("pointermove", e => {
+  if(daySegHold && daySegAt && Math.hypot(e.clientX-daySegAt.x, e.clientY-daySegAt.y) > 10) cancelDaySegHold();
+});
+["pointerup","pointerleave","pointercancel"].forEach(ev =>
+  $("daySeg").addEventListener(ev, cancelDaySegHold));
+// Android raises a context menu on long-press; keep it off the tabs.
+$("daySeg").addEventListener("contextmenu", e => e.preventDefault());
 
 /* Long press the session cell to zero it. Cancelled by lifting or by moving,
    so a scroll that starts on the dashboard cannot wipe your clock. */
