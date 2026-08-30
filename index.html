@@ -115,15 +115,17 @@
   .rir{font-family:var(--mono);font-size:12px;color:var(--ink-2);letter-spacing:.02em}
   .rir b{color:var(--signal);font-size:13px}
   .hright{display:flex;align-items:baseline;gap:10px}
-  .themeBtn{appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink-2);
+  .themeBtn{appearance:none;border:none;background:var(--card);color:var(--ink-2);
     font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
-    padding:5px 8px;border-radius:2px;cursor:pointer;min-width:52px}
-  .seg{display:flex;gap:6px;margin-bottom:7px}
-  .seg button{flex:1;appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink-2);
+    padding:6px 8px;border-radius:5px;cursor:pointer;min-width:52px}
+  .seg{display:flex;gap:6px;margin-bottom:6px}
+  .seg button{flex:1;appearance:none;border:none;background:var(--card);color:var(--ink-2);
     font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
-    padding:10px 0;border-radius:2px;cursor:pointer}
-  .seg button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
-  .seg.weeks button[aria-pressed="true"].dl{background:var(--deload);border-color:var(--deload)}
+    padding:10px 0;border-radius:5px;cursor:pointer}
+  /* Selection stays an inverted fill. The dashboard has no selected state to
+     borrow from, and nothing reads as "chosen" more plainly than this. */
+  .seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+  .seg.weeks button[aria-pressed="true"].dl{background:var(--deload)}
   /* Struck through rather than merely dimmed: the current day is already the
      filled tab, so dimming alone would not read as "set aside" on it. */
   .seg.days button.skipped{opacity:.55;text-decoration:line-through;text-decoration-thickness:1px}
@@ -139,7 +141,7 @@
      Both stopwatches share one column width; the tighter horizontal padding
      is what keeps a h:mm:ss session from crowding its panel. */
   .dash{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:1fr 1fr auto;
-    gap:6px;background:var(--paper);padding:5px 8px}
+    gap:6px;background:var(--paper);padding:5px 14px}
   .dcell{appearance:none;border:none;background:var(--card);color:var(--ink);font-family:var(--mono);
     border-radius:5px;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
