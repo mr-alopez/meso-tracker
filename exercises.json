@@ -155,7 +155,8 @@
       "cue": "Heavy on the connective tissue at the knee. Introduce it with low volume if it's new." },
 
     { "id": "leg_extension", "name": "Leg Extension", "slot": "quad_isolation", "muscle": "Quads",
-      "equipment": ["machine"], "unit": "", "spinalLoad": "low" },
+      "equipment": ["machine"], "unit": "", "spinalLoad": "low",
+      "subs": ["leg_press"] },
     { "id": "walking_lunge", "name": "Walking Lunge", "slot": "quad_unilateral", "muscle": "Quads",
       "equipment": ["dumbbell"], "unit": "per DB", "spinalLoad": "low",
       "cue": "Needs floor space to travel. Competes with running for recovery more than a leg extension does." },

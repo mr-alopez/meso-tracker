@@ -557,8 +557,14 @@ const LIBRARY = {
     { id:"bulgarian_split_squat", name:"Bulgarian Split Squat", slot:"quad_unilateral", muscle:"Quads",
       equipment:["dumbbell","bench"], unit:"per DB", spinalLoad:"low",
       cue:"Heavy on the connective tissue at the knee. Introduce it with low volume if it's new." },
+    /* spec sec.14: substitution eligibility is declared independently of slot
+       membership, because leg_press belongs to the squat taxonomy and the
+       leg-extension neighbourhood at once. Declared one-way, on the exercise
+       whose neighbourhood it widens - the squat slot does NOT gain a leg
+       extension in return. */
     { id:"leg_extension", name:"Leg Extension", slot:"quad_isolation", muscle:"Quads",
-      equipment:["machine"], unit:"", spinalLoad:"low" },
+      equipment:["machine"], unit:"", spinalLoad:"low",
+      subs:["leg_press"] },
     { id:"walking_lunge", name:"Walking Lunge", slot:"quad_unilateral", muscle:"Quads",
       equipment:["dumbbell"], unit:"per DB", spinalLoad:"low",
       cue:"Needs floor space to travel. Competes with running for recovery more than a leg extension does." },
@@ -671,13 +677,21 @@ function effectiveLib(dayKey, programId){
 function resolveEx(p, dayKey){
   const lib = effectiveLib(dayKey, p.id);
   const swapped = lib.id !== p.id;
+  /* The slot a substitute FILLS, not the slot it belongs to. Identical for
+     every same-slot swap, and it only diverges under a sec.14 neighbourhood -
+     leg_press is quad_squat by taxonomy but fills quad_isolation. sec.14 rules
+     that it substitutes "at the slot's 15-20 reps as a finisher", so the rep
+     range has to follow the slot being filled; its own slot would hand it
+     8-12 and make it a different exercise than the one ruled acceptable. */
+  const origin = LIB_EX.get(p.id);
+  const fills = (origin && origin.slot) || lib.slot;
   return {
     programId: p.id, id: lib.id, swapped,
     sets: p.sets, start: swapped ? null : p.start,
     name: lib.name, muscle: lib.muscle, unit: lib.unit,
-    slot: lib.slot, equipment: lib.equipment, spinalLoad: lib.spinalLoad,
+    slot: fills, equipment: lib.equipment, spinalLoad: lib.spinalLoad,
     loadSense: lib.loadSense,          // absent → the engine defaults it to "weight"
-    reps: (!swapped ? p.reps : null) ?? lib.reps ?? LIBRARY.slots[lib.slot].defaultReps,
+    reps: (!swapped ? p.reps : null) ?? lib.reps ?? LIBRARY.slots[fills].defaultReps,
     cue: (!swapped ? p.cue : null) ?? lib.cue ?? null
   };
 }
@@ -1664,7 +1678,10 @@ function endDrag(commit){
    history lives under its own id, so swapping back restores it. */
 function openSwapSheet(ex){
   $("swapTitle").textContent = `${LIBRARY.slots[ex.slot].label} — swap for`;
-  $("swapOpts").innerHTML = LIBRARY.exercises.filter(o=>o.slot===ex.slot).map(o=>{
+  // ex.slot is the slot being filled, so this still lists the neighbours after a
+  // cross-slot swap - which is what makes leg_press -> leg_extension reversible.
+  const declared = new Set((LIB_EX.get(ex.programId) || {}).subs || []);
+  $("swapOpts").innerHTML = LIBRARY.exercises.filter(o=>o.slot===ex.slot || declared.has(o.id)).map(o=>{
     const spinal = o.spinalLoad !== ex.spinalLoad
       ? `<div class="ospinal">spinal load ${o.spinalLoad} (current: ${ex.spinalLoad})</div>` : "";
     return `<button class="opt" data-swap-to="${o.id}" data-program="${ex.programId}" aria-pressed="${o.id===ex.id}">
