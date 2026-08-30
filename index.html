@@ -130,13 +130,20 @@
   .daymeta{font-size:12px;color:var(--ink-3);padding:0 0 8px;font-family:var(--mono)}
 
   /* ---- sticky dashboard: session · rest · sets left ---- */
-  /* Both stopwatches share one column width; the tighter horizontal padding
-     is what keeps a h:mm:ss session from crowding its cell. */
+  /* Three platforms, not a ruled table. Dividing lines are table grammar -
+     they promise columns that relate down a grid, and there is one row of
+     three unrelated readouts. Separate panels also let the two that are
+     buttons look like buttons while the sets count, which is not tappable,
+     simply sits there. Gutters keep the right-hand panel off the screen edge,
+     where running flush read as truncated even though nothing was clipped.
+     Both stopwatches share one column width; the tighter horizontal padding
+     is what keeps a h:mm:ss session from crowding its panel. */
   .dash{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:1fr 1fr auto;
-    gap:1px;background:var(--line-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-  .dcell{appearance:none;border:none;background:var(--paper);color:var(--ink);font-family:var(--mono);
+    gap:6px;background:var(--paper);padding:5px 8px}
+  .dcell{appearance:none;border:none;background:var(--card);color:var(--ink);font-family:var(--mono);
+    border-radius:5px;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-    padding:9px 4px;min-height:68px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+    padding:6px 8px;min-height:56px;cursor:pointer;-webkit-tap-highlight-color:transparent}
   .dcell.count{cursor:default}
   .dlabel{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);
     white-space:nowrap}
@@ -165,7 +172,7 @@
   /* Now the only control in the header, so it stops being a 24px glyph you
      have to hunt for and becomes a 44px target you can find by feel. */
   .grip{flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center;
-    border:1px solid var(--line-2);border-radius:2px;padding:0}
+    padding:0}
   .grip svg{width:13px;height:21px;fill:var(--line);display:block}
   /* The slot the card came from, as a slim dashed gap rather than a faded
      full-height card. At 600-750px tall a faded card is invisible: the gap has
@@ -192,12 +199,11 @@
   /* Video and swap live on the prescription line now, not the header - the
      header is the title and the drag handle, nothing else. */
   .rowbtns{display:flex;align-items:center;gap:6px;flex:none}
-  .swapBtn,.vidBtn{appearance:none;border:1px solid var(--line-2);background:transparent;border-radius:2px;
+  .swapBtn,.vidBtn{appearance:none;border:none;background:transparent;
     width:34px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;
     text-decoration:none}
   .swapBtn svg{width:14px;height:14px;stroke:var(--ink-3);stroke-width:2;fill:none;stroke-linecap:square}
   .vidBtn svg{width:13px;height:13px;fill:var(--video)}
-  .card.swapped .swapBtn{border-color:var(--signal)}
   .card.swapped .swapBtn svg{stroke:var(--signal)}
 
   /* ---- swap sheet ---- */
@@ -237,10 +243,10 @@
 
   /* Active set: the next one due. Grows a little and takes a blue edge; the
      inactive rows keep their 44px touch targets rather than shrinking. */
-  /* Full-bleed to the card edges: inset equally on both sides it read as
-     stopping short on the right, because the blue bar anchors only the left. */
-  .row.active{background:var(--active-bg);box-shadow:inset 3px 0 0 var(--signal);
-    margin:0 -12px;padding:5px 12px}
+  /* Full-bleed to the card edges. The active row is marked by its tint, its
+     larger fields and its blue set number - a left-edge bar on top of those
+     anchored one side only and made the column read staggered. */
+  .row.active{background:var(--active-bg);margin:0 -12px;padding:5px 12px}
   .row.active .setno{color:var(--signal);font-weight:700}
   .row.active input[type=number]{padding:14px 8px;font-size:21px}
   .row.active .chk{height:48px}
@@ -350,7 +356,7 @@
 <div class="wrap">
   <header>
     <div class="brandrow">
-      <div class="brand">Meso 01 · Rebalanced</div>
+      <div class="brand">Meso Tracker</div>
       <div class="hright">
         <div class="rir" id="rirLabel"></div>
         <button class="themeBtn" id="themeBtn" aria-label="Color theme">auto</button>
@@ -607,7 +613,7 @@ const PROGRAM = {
     {n:4, rir:"4–5", note:"Deload. Sets are cut roughly in half and load drops to about 65–70% of week 3. Move well, leave everything in the tank, keep the runs easy."}
   ],
   days: [
-    {key:"mon", label:"Mon", focus:"Push · partner gym", ex:[
+    {key:"mon", label:"Mon", focus:"Push", ex:[
       {id:"inc_db_press", sets:[3,3,4,2], start:25,
        cue:"The upper-chest lift. Bench at about 30°, not 45° — higher angles hand the work to the front delt."},
       {id:"db_shoulder_press", sets:[3,3,3,2], start:25,
