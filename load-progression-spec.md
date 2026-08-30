@@ -1,5 +1,13 @@
 # Load Progression Spec — meso-tracker
 
+Version 1.9 · 30 Aug 2026 — §13 mesocycle lifecycle (block creation, seeding, the block
+boundary, carry-over, PROGRAM drift, read-only history) and §14 substitution eligibility, which
+**corrects an error in v1.6**: the claim that swapping a leg extension for a leg press "would
+roughly double quad volume" was wrong, since set counts come from PROGRAM and do not change on
+a swap. §13 supersedes the v1.6 §13 draft entirely — that draft was never applied and should
+not be consulted. Storage shape is not specified by the amendment; it is the implementation's.
+Supersedes v1.8, below.
+
 Version 1.8 · 30 Aug 2026 — rules on whether a skip suppresses logged sets. **§1's
 reference week is unchanged**; the amendment records that as decided and corrects the
 `INCOMPLETE` family of strings, which misattributed cause. Strings and documentation only —
@@ -605,6 +613,13 @@ Every vector must pass. Unless stated, `prescribed` is 3 and effort is `right`.
 | 37 | Wk 3. Wk 2 **not** skipped, same 2 of 3 at 90, reps 9/8. Wk 1 as #35 | — | `INCOMPLETE` | `repeat 90 — 2 of 3 sets logged` |
 | 38 | Wk 3. Wk 2 skipped, 3 of 3 logged at 90, reps 12/11/10, right, presc 3, 8–12 | `P_PASS` | `ADD` | `90 ✓ → try 95` |
 | 39 | `pullup_assisted` 40, 10–15, 2 of 3 logged, reps 14/12, presc 3 | — | `INCOMPLETE` | `repeat 40 assist — 2 of 3 sets logged` |
+| 40 | New block wk 1. Outgoing wk 3 held BB 90. New PROGRAM names no `start` | — | `NO_DATA` | `start 90` |
+| 41 | New block wk 1. Outgoing wk 3 held BB 90. New PROGRAM names `start` 100 | — | `NO_DATA` | `start 100` |
+| 42 | New block wk 1. Exercise absent from outgoing block, no `start`, 10–15 | — | `NO_DATA` | `find it — 15 reps, 3 in reserve` |
+| 43 | New block wk 1. Outgoing logged **only** wk 4 at 60. No `start`, 10–15 | — | `NO_DATA` | `find it — 15 reps, 3 in reserve` |
+| 44 | New block wk 1. Outgoing wks 1–3 all qualifying: 80, 85, 90. No `start` | — | `NO_DATA` | `start 90` |
+| 45 | New block wk 1. Outgoing wk 3 empty, wk 2 held 85, wk 4 held 60. No `start` | — | `NO_DATA` | `start 85` |
+| 46 | New block **wk 2**. New block wk 1 held BB 90, 8–12, 12/11/10, right, presc 3 | `P_PASS` | `ADD` | `90 ✓ → try 95` |
 
 Vectors 1–12 originate with v1.0/v1.1. **Vector 9's text was amended by v1.2 §9**, which
 removed the load number from `PAIN`. **Vector 11 was amended by v1.3**, which supplied the
@@ -614,6 +629,17 @@ the `BW_PROGRESS` outcome name. Vectors 1–8, 10 and 12 are unchanged: all are 
 §7's cascade, never reaching a later rung or §7.1. **v1.4 split every row's `Expected` cell**
 across the class and outcome columns — vectors 1, 3, 4 and 5 had stated a class where the
 other rows stated an outcome — and changed no expectation.
+
+**v1.9 changed no existing row.** §13 governs block creation and the reference-week boundary,
+and no vector 1–39 has a block concept; §14 is a library eligibility change with no engine
+rule behind it. Confirmed against the table rather than assumed. Vectors 40–46 are new.
+40–45 drive the §13.2 seed and then the engine, so that what is being asserted is where the
+seed came from — pre-computing it would collapse 43, 44 and 45 into one row that proves
+nothing. **43 is the deload-exclusion case** (week 4 is the only logged week, §13.2 refuses
+it, nothing is seeded). **45 confirms the seed's walk-back skips an empty week 3 and still
+refuses week 4.** **46 is the guard on §13.3**: the boundary stops a reference week leaving a
+block, not weeks referencing each other inside one, and an implementation that over-applies it
+returns `NO_DATA` here.
 
 **v1.8 changed the text of vectors 12 and 17 only** — the `INCOMPLETE` family now states the
 evidence rather than naming a failure to finish. No class or outcome changed on any existing
@@ -655,3 +681,142 @@ Vector 22 must return `PAIN` even though the mixed loads would otherwise route t
 
 Vectors 23 and 24 exercise the fallback cascade: 85 × 0.70 = 59.5, floored to 55;
 45 × 0.70 = 31.5, floored to 30.
+
+---
+
+## 13. Mesocycle lifecycle
+
+A mesocycle is a PROGRAM together with its logged data. **The app does not generate a
+PROGRAM.** Blocks are designed deliberately outside the app. At transition the app preserves,
+seeds, and switches — nothing more.
+
+### 13.1 Creating a block
+
+Creating block *N+1* requires a PROGRAM for it. The action is unavailable without one.
+
+On creation, in order:
+
+1. A new block is added under a fresh id. **Nothing in any prior block is modified, moved or
+   deleted.**
+2. Starting loads are seeded per §13.2.
+3. Carry-over is applied per §13.4.
+4. The new block becomes active.
+
+### 13.2 Seeding
+
+Per exercise id, the seed is the working load of the **reference week among loading weeks
+only** — the most recent of weeks 1–3 in the outgoing block holding qualifying sets for that
+exercise id, per §7.
+
+Week 4 is excluded. Seeding from a deload would open the new block roughly 30% light.
+
+**An explicit PROGRAM `start` value wins over a seed.** Authoring beats inference: if the next
+block names a starting load for an exercise, that is a deliberate decision and the seed does
+not override it. Seeding fills only where PROGRAM is silent.
+
+Where no loading week holds qualifying sets and PROGRAM names no start, the exercise begins
+unseeded and resolves to the find-it text.
+
+Seeding matches on exercise id alone. A seeded load carries even where the new PROGRAM
+prescribes a different rep range for that exercise; week 1 runs at 3 RIR and §8 corrects from
+the athlete's own evidence within a week or two.
+
+### 13.3 The block boundary stops the reference week
+
+**§1's reference week does not walk out of a block.** Week 1 of a new block has no reference
+week and resolves to `NO_DATA` — `start {load}` where seeding or PROGRAM supplied one, the
+find-it text otherwise.
+
+This is a hard boundary, not a preference. Two reasons:
+
+The walk-back searches for the most recent week holding qualifying sets. The outgoing block's
+most recent such week is **week 4, the deload**. Left unbounded, week 1 of every new block
+would evaluate against deload performance and suggest progression from deload loads.
+
+Restricting the walk to loading weeks would avoid that but is still wrong: §13.2 already
+carries the load across. Reading performance across as well would apply the old block's results
+to a PROGRAM that may prescribe different sets, reps, or exercise order.
+
+### 13.4 What carries over
+
+| Data | Carries | Rationale |
+|---|---|---|
+| `order` | **Yes** | A durable preference about how a day is arranged. Retain relative order for ids present in the new PROGRAM; append new exercises in PROGRAM order |
+| `swaps` | **No** | A swap says "not what was programmed." The new PROGRAM is authored deliberately — carrying swaps forward would silently override that authoring. If a swapped exercise is wanted, it gets programmed |
+| `notes` | **No** | Dated observations tied to a session |
+| `sets`, `warmups`, `feedback`, `skips`, `daySkips` | **No** | Results and events, per block by definition |
+
+**[revisit]** `notes` conflates two kinds of thing: dated observations, which are per block, and
+durable equipment settings — cable height, bench angle, seat position — which are properties of
+the exercise at that gym and are lost at every transition. A per-exercise settings field,
+carried across blocks, would be the right home. Not specified here.
+
+### 13.5 PROGRAM drift
+
+| Case | Behaviour |
+|---|---|
+| Exercise in new PROGRAM, absent from old | No seed available. PROGRAM `start` if named, else find-it |
+| Exercise in old PROGRAM, absent from new | Nothing happens. Its data remains in the old block, untouched |
+| Exercise in both, different rep range or slot | Seeded normally per §13.2 |
+| Exercise in both, reached only by swap in the old block | Seeded — seeding matches on exercise id, and a swapped-in exercise has its own id and its own logged sets |
+
+### 13.6 Prior blocks are read-only
+
+**Enforced, not defaulted.** Input fields in a non-active block are disabled.
+
+A mis-tap on an old week silently corrupts the evidence used to design later blocks, and there
+is no undo. Defaulting to the active block prevents the common case and not the damaging one.
+
+Viewing a prior block does not activate it. Changing which block is active is a deliberate,
+confirmed action, and is the only way a prior block becomes writable again.
+
+**[revisit]** Correcting a genuine error in a closed block currently requires reactivating it.
+Acceptable while blocks are few.
+
+---
+
+## 14. Substitution eligibility
+
+### Correction to v1.6
+
+v1.6 ruled that `quad_isolation` must not reach `quad_squat`, on the grounds that substituting
+a leg press "would roughly double quad volume." **That reasoning was wrong.** Set counts come
+from PROGRAM and do not change on a swap: two sets of leg extension become two sets of leg
+press. The volume claim was incorrect, and the taxonomy argument stacked on it does not stand
+alone.
+
+### Ruling
+
+The v1.6 split was correct taxonomy and left `leg_extension` with one alternative. The
+substitution neighbourhood and the taxonomy are not the same shape.
+
+**Unilateral compounds are not acceptable substitutes for the leg extension.** Recorded as
+decided.
+
+The leg extension occupies that slot for its **cost profile**, not its muscle label: open
+chain, seated, no stability demand, no hip involvement, negligible calf and Achilles loading,
+and low systemic cost on a day that has already squatted and sits between two running days.
+Bulgarian split squats, lunges and step-ups are closed-chain and stability-dependent, recruit
+hip and glute, load the Achilles substantially — the step-up most — and at 8–15 per leg run
+double the working reps. Same muscle, opposite cost profile.
+
+**Leg press is an acceptable substitute.** Back supported, no spinal load, no stability demand,
+no meaningful Achilles exposure. At the slot's 15–20 reps as a finisher it is the closest
+available match to the leg extension's role, despite belonging to the squat taxonomy.
+
+**Hack squat is not.** Greater systemic cost and some spinal loading — the wrong direction for
+a finisher after squats.
+
+Resulting neighbourhood for `leg_extension`: **`leg_press`, `sissy_squat`** (the latter
+retaining its existing knee caution cue).
+
+Mechanism is unspecified. The requirement is only that substitution eligibility be declarable
+independently of slot membership, since `leg_press` belongs to the squat taxonomy and the
+leg-extension neighbourhood at once.
+
+### The stranded unilateral movements
+
+The five `quad_unilateral` exercises remain unreachable by swap and are not stranded by error.
+They serve deliberate single-leg work, which belongs in a PROGRAM rather than arriving through
+a busy machine. Wednesday is already seven exercises, so introducing them is a designed trade
+in a future block, not an addition to this one.
