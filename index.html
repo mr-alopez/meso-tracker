@@ -1380,6 +1380,17 @@ function renderDay(){
     const n = ex.sets[W-1];
     // §13.6: fields in a closed block are disabled, not merely ignored.
     const ro = viewingActive() ? "" : " disabled";
+    const sug = suggestFor(ex);
+    /* The weight field hints the load the engine is actually suggesting, not
+       PROGRAM's start. `start` never changes across a block, so from week 2 the
+       field greyed in the number he began at while the ghost under it read
+       "last 30x12" and the suggestion read "repeat 30" - the one number in the
+       type-here position was the only stale one on the card.
+
+       §5.1's `load` is null wherever there is no single number to name - MIXED,
+       PAIN, and find-it - and the hint is then empty rather than falling back
+       to `start`, which would put the stale number straight back. */
+    const hint = sug.load ?? "";
     const rows = Array.from({length:n},(_,si)=>{
       const c = LOG.sets[cell(W,D,ex.id,si)] || {};
       const prev = W>1 ? (LOG.sets[cell(W-1,D,ex.id,si)] || null) : null;
@@ -1391,7 +1402,7 @@ function renderDay(){
         <div class="setno">${si+1}</div>
         <div class="fieldwrap">
           <input type="number" inputmode="decimal" step="0.5" data-f="w" data-e="${ei}" data-s="${si}"
-            value="${c.weight??""}" placeholder="${ex.start!==null&&ex.start!==0?ex.start:""}"${ro}>
+            value="${c.weight??""}" placeholder="${hint}"${ro}>
           <span class="ghost">${ghost}</span>
         </div>
         <div class="fieldwrap">
@@ -1405,7 +1416,6 @@ function renderDay(){
     }).join("");
     const allDone = Array.from({length:n},(_,si)=>LOG.sets[cell(W,D,ex.id,si)]?.done).every(Boolean);
     const noteVal = LOG.notes[`${W}|${D}|${ex.id}`] || "";
-    const sug = suggestFor(ex);
     const fb = LOG.feedback[`${W}|${D}|${ex.id}`] || {};
     const skipped = isSkipped(W, D, ex.id);
     return `<div class="card ${allDone?'done':''} ${ex.swapped?'swapped':''} ${skipped?'skipped':''}" data-ex="${ex.programId}">
