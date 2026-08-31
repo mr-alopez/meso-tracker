@@ -1,5 +1,17 @@
 # Load Progression Spec — meso-tracker
 
+Version 2.0 · 31 Aug 2026 — §4 is reshaped from a **rep-buffer requirement** into a
+**landing check**. Major version because the gate's premise changes, not its constants. Also
+records two decisions so they stop being re-derived: fractional plates are out of the solution
+space, and the session report is not URL-prefilled.
+
+> **THE ENGINE DOES NOT YET IMPLEMENT §4 AS WRITTEN BELOW.** The document is merged; the code
+> still encodes the v1.9 gate, deliberately. A rule that newly permits 20% load jumps must not
+> take effect in week 3 of a block at 1 RIR. It ships with the §13 block-creation work, and
+> costs nothing to defer: week 4 produces no progression suggestions (§7) and week 1 of a new
+> block resolves to `NO_DATA` (§13.3), so the new gate first changes a suggestion in Meso 02
+> week 2 either way. `SPEC_VERSION` in the app therefore reads 1.9 on purpose until then.
+
 Version 1.9 · 30 Aug 2026 — §13 mesocycle lifecycle (block creation, seeding, the block
 boundary, carry-over, PROGRAM drift, read-only history) and §14 substitution eligibility, which
 **corrects an error in v1.6**: the claim that swapping a leg extension for a leg press "would
@@ -212,27 +224,52 @@ set would require sandbagging the early sets.
 
 ---
 
-## 4. Jump feasibility gate
+## 4. Landing feasibility gate
 
-Applied only when the class is `P_PASS`.
+Applied only when the class is `P_PASS` and `loadSense` is `"weight"`.
 
 ```
 estimatedRepLoss = ceil(jumpPct / 0.03)
-requiredReps     = range.bottom + estimatedRepLoss
-ceiling          = range.top + 6
+estimatedLanding = first.reps - estimatedRepLoss
+landingFloor     = ceil(range.bottom / 2)
 
-if requiredReps > ceiling:        class = P_UNPROGRESSABLE
-elif first.reps < requiredReps:   class = P_GATED
+if estimatedLanding >= landingFloor:
+    class remains P_PASS
+else:
+    requiredReps = landingFloor + estimatedRepLoss
+    ceiling      = range.top + 6
+    if requiredReps > ceiling:  class = P_UNPROGRESSABLE
+    else:                       class = P_GATED
 ```
 
-The condition asks whether enough reps are in hand that, after the expected
-loss from the added load, set 1 still lands at or above the bottom of the
-range. Roughly 3% added load costs one rep; this is a heuristic, and it
-understates the loss at high rep counts, which errs conservative. **[revisit]**
+The gate asks a single question: **after taking the smallest available increment, is set 1
+still a productive working set for this slot?** It does not ask whether the athlete retains a
+buffer, and it does not require the prescribed range to be exceeded.
 
-`P_UNPROGRESSABLE` means the smallest available increment cannot be absorbed
-by this rep range at this load — the lift is not progressable by load until
-smaller increments exist or the load grows. It is a hold, not an error.
+`landingFloor` is half the range bottom because rep ranges differ by slot for reasons that
+survive a load increase. A high-rep lateral raise slot exists because heavy lateral raises stop
+being lateral raises; an 8–12 press slot has no such constraint. A proportional floor respects
+that, where a fixed rep offset would not.
+
+**Why the v1.1 gate was replaced.** The arithmetic was never the defect —
+`ceil(jumpPct / 0.03)` tracks a standard rep-max relationship closely. The premise was. Requiring
+set 1 to clear the range *bottom* after the jump means holding a large rep buffer *before* it,
+and on a coarse increment that buffer exceeds the top of the range. Measured across the PROGRAM
+at v1.9, six of fourteen loaded exercises demanded between one and four reps past the **top**
+before the next available load unlocked. The top of a rep range is the signal to add load — a
+rule that requires exceeding it contradicts the definition of the quantity it reads. Double
+progression has always run the other way: reach the top, add load, watch reps fall, climb back.
+
+**[revisit]** Half is a threshold, not a derivation. It was chosen to clear the PROGRAM while
+still blocking a three-rep landing in a 12–20 slot. **Verified after merging: it clears 13 of
+14, not all 14.** `db_curl_incline` at 15 in a 10–15 slot still gates at `need 17+ before 20` —
+a 33% jump costing an estimated 12 reps lands at 3 against a floor of 5. It does improve, since
+v1.9 called that same case `P_UNPROGRESSABLE`. Recorded because the amendment stated the
+stronger claim.
+
+`P_UNPROGRESSABLE` means the smallest available increment cannot be absorbed by this slot at
+this load. It remains a hold, not an error, and now fires only for genuinely coarse increments —
+above roughly 40–60% of the working load depending on the range.
 
 Text:
 
@@ -574,10 +611,10 @@ Every vector must pass. Unless stated, `prescribed` is 3 and effort is `right`.
 
 | # | Input | Expected class | Expected outcome | Expected text |
 |---|---|---|---|---|
-| 1 | DB 25, 8–12, 12/11/9 | `P_GATED` | `HOLD_GATE` | `repeat 25 — need 15+ before 30` |
+| 1 | DB 25, 8–12, 12/11/9 | `P_PASS` | `ADD` | `25 ✓ → try 30` |
 | 2 | BB 85, 8–12, 12/11/10 | `P_PASS` | `ADD` | `85 ✓ → try 90` |
 | 3 | BB 85, 8–12, 12/10/7 | `P_DROP` | `HOLD` | `repeat 85 — chase 12+` |
-| 4 | DB 10, 12–20, 20/18/16, easy | `P_UNPROGRESSABLE` | `HOLD` | `5 is too big a jump here — hold 10 and add reps` |
+| 4 | DB 10, 12–20, 20/18/16, easy | `P_GATED` | `HOLD_GATE` | `repeat 10 — need 23+ before 15` |
 | 5 | BB 45, 10–15, 15/14/12, brutal | `P_PASS` | `HOLD_RIR` | `repeat 45 — same reps, more in reserve` |
 | 6 | Cable 60, 10–15, 8/7/6 | `P_FAIL` | `REDUCE` | `drop to 50 — 10+ clean` |
 | 7 | Machine 70 step 2.5, 10–15, 15/13/12 | `P_PASS` | `ADD` | `70 ✓ → try 72.5` |
@@ -606,7 +643,7 @@ Every vector must pass. Unless stated, `prescribed` is 3 and effort is `right`.
 | 30 | Week 3, week 2 unlogged, week 1 BB 85, 8–12, 12/11/10, presc 3 | `P_PASS` | `ADD` | `85 ✓ → try 90` |
 | 31 | Week 3, no prior week logged, no start value | — | `NO_DATA` | `find it — 12 reps, 1 in reserve` |
 | 32 | Rack 10/12/15/20, load 10, range 12–20, sets 20/18/16, easy, presc 3 | `P_PASS` | `ADD` | `10 ✓ → try 12` |
-| 33 | Rack 10/12/15/20, load 12, range 12–20, sets 20/18/16, presc 3 | `P_GATED` | `HOLD_GATE` | `repeat 12 — need 21+ before 15` |
+| 33 | Rack 10/12/15/20, load 12, range 12–20, sets 20/18/16, presc 3 | `P_PASS` | `ADD` | `12 ✓ → try 15` |
 | 34 | Rack 10/12/15/20, load 15, range 12–20, sets 10/9/8, presc 3 | `P_FAIL` | `REDUCE` | `drop to 12 — 12+ clean` |
 | 35 | Wk 3. Wk 2 holds no qualifying sets. Wk 1 BB 85, 8–12, 12/11/10, right, presc 3 | `P_PASS` | `ADD` | `85 ✓ → try 90` |
 | 36 | Wk 3. Wk 2 skipped, 2 of 3 logged at 90, reps 9/8, presc 3, 8–12. Wk 1 as #35 | — | `INCOMPLETE` | `repeat 90 — 2 of 3 sets logged` |
@@ -620,6 +657,12 @@ Every vector must pass. Unless stated, `prescribed` is 3 and effort is `right`.
 | 44 | New block wk 1. Outgoing wks 1–3 all qualifying: 80, 85, 90. No `start` | — | `NO_DATA` | `start 90` |
 | 45 | New block wk 1. Outgoing wk 3 empty, wk 2 held 85, wk 4 held 60. No `start` | — | `NO_DATA` | `start 85` |
 | 46 | New block **wk 2**. New block wk 1 held BB 90, 8–12, 12/11/10, right, presc 3 | `P_PASS` | `ADD` | `90 ✓ → try 95` |
+| 47 | Incline DB press 25, 8–12, step 5, 12/11/10, right, presc 3 | `P_PASS` | `ADD` | `25 ✓ → try 30` |
+| 48 | DB upright row 20, 10–15, step 5, 15/13/12, right, presc 3 | `P_PASS` | `ADD` | `20 ✓ → try 25` |
+| 49 | Leg extension 45, 15–20, step 10, 20/18/16, right, presc 3 | `P_PASS` | `ADD` | `45 ✓ → try 55` |
+| 50 | BB good morning 65, 10–12, step 5, 12/11/10, right, presc 3 | `P_PASS` | `ADD` | `65 ✓ → try 70` |
+| 51 | Load 10, 12–20, step 5, 20/18/16, right, presc 3 | `P_GATED` | `HOLD_GATE` | `repeat 10 — need 23+ before 15` |
+| 52 | Load 10, 12–20, step 10, 20/18/16, right, presc 3 | `P_UNPROGRESSABLE` | `HOLD` | `10 is too big a jump here — hold 10 and add reps` |
 
 Vectors 1–12 originate with v1.0/v1.1. **Vector 9's text was amended by v1.2 §9**, which
 removed the load number from `PAIN`. **Vector 11 was amended by v1.3**, which supplied the
@@ -629,6 +672,25 @@ the `BW_PROGRESS` outcome name. Vectors 1–8, 10 and 12 are unchanged: all are 
 §7's cascade, never reaching a later rung or §7.1. **v1.4 split every row's `Expected` cell**
 across the class and outcome columns — vectors 1, 3, 4 and 5 had stated a class where the
 other rows stated an outcome — and changed no expectation.
+
+**v2.0 changed rows 1, 4 and 33, and added 47–52.** Every row whose class is `P_PASS`,
+`P_GATED` or `P_UNPROGRESSABLE` was re-derived against the new §4, as the amendment required —
+15 rows in all; the other 12 were unaffected. **Vector 32 did not change**, though the amendment
+listed it as suspect. Rows with `class: —` never reach the gate and were not re-derived.
+
+Row 4 is the sharpest illustration of the change: the same lateral-raise input that v1.1 called
+`P_UNPROGRESSABLE` is now merely `P_GATED`. A 50% jump landing at 3 reps in a 12–20 slot is
+still refused — the floor is doing work — but it is refused as "not yet" rather than "never".
+
+**Rows 4 and 51 return identical results**, differing only in effort (`easy` against `right`),
+because the gate is effort-independent across those two. Both are kept, on the same reasoning
+v1.4 gave for keeping 9 and 22: a pair that agrees from different inputs demonstrates the
+independence rather than duplicating a check.
+
+Rows 47–50 are the survey cases and are the point of the amendment — a perfect week under the
+prescription must progress. All four were confirmed against the live PROGRAM, not just the
+harness: under §4 v2.0 the six exercises that v1.9 gated at the top of their range all return
+`ADD`.
 
 **v1.9 changed no existing row.** §13 governs block creation and the reference-week boundary,
 and no vector 1–39 has a block concept; §14 is a library eligibility change with no engine
@@ -820,3 +882,34 @@ The five `quad_unilateral` exercises remain unreachable by swap and are not stra
 They serve deliberate single-leg work, which belongs in a PROGRAM rather than arriving through
 a busy machine. Wednesday is already seven exercises, so introducing them is a designed trade
 in a future block, not an addition to this one.
+
+---
+
+## 15. Decided, so they stop being re-derived
+
+### Fractional plates are not part of the solution space
+
+**Decided (v2.0), not deferred.** Fractional or magnetic add-on plates do not solve progression
+stalls in this system.
+
+They have now been proposed three times: by the spec author in the v1.6 amendment, and twice
+since by outside readers of a session report. The athlete does not own them. v1.7's rack model
+removed the need for them on the lateral raise, and §4 v2.0 removes what remained of the
+motivation by letting a coarse increment through whenever the landing is still productive.
+
+Any future proposal to solve a stall with fractional hardware should be answered with this
+entry rather than re-argued.
+
+### The session report is not URL-prefilled
+
+**Decided (v2.0).** The report is handed off by `navigator.share()` with a clipboard write
+first, never by a prefilled chat URL.
+
+The handoff design note budgeted 1,800 characters and then compared a **plain** character count
+against it. URL encoding inflates this text roughly 1.7×, chiefly because spaces triple: a real
+Monday is 1,103 plain and **1,899 encoded**, and Friday is 2,167. The note's own over-budget
+guard would therefore have fired every session, and the prefill branch could never have run.
+
+Recorded so the idea is not revisited on the strength of the original estimate. The clipboard
+write happens before the share attempt, so a cancelled or unsupported share leaves the report
+recoverable rather than lost.
