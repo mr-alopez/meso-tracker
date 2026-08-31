@@ -1235,6 +1235,21 @@ function suggestLoad({weekSets, prescribed, range, step, rack, loadSense, feedba
   if(proportional){
     const jumpPct = stepUp / load;
     if(cls === "P_PASS"){
+      /* This is §4 as of v1.9 - a rep-buffer requirement. Spec v2.0 REPLACES it
+         with a landing check and is already merged into the document; it is not
+         implemented here on purpose. A rule that newly permits 20% load jumps
+         must not take effect in week 3 of a block at 1 RIR, so it ships with
+         §13's block creation. Deferring costs nothing: week 4 makes no
+         progression suggestions and week 1 of a new block is NO_DATA, so v2.0
+         first changes a suggestion in Meso 02 week 2 either way.
+
+         When it ships, this becomes:
+             estimatedRepLoss = ceil(jumpPct / 0.03)
+             landingFloor     = ceil(bottom / 2)
+             if first.reps - estimatedRepLoss < landingFloor:
+               requiredReps = landingFloor + estimatedRepLoss
+               cls = requiredReps > top + 6 ? "P_UNPROGRESSABLE" : "P_GATED"
+         and vectors 1, 4 and 33 change with it. SPEC_VERSION goes to "2.0". */
       requiredReps = bottom + Math.ceil(jumpPct / 0.03);
       if(requiredReps > top + 6)         cls = "P_UNPROGRESSABLE";
       else if(first.reps < requiredReps) cls = "P_GATED";

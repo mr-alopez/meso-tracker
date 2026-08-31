@@ -8,7 +8,17 @@
      document.head.appendChild(Object.assign(document.createElement("script"),
        {src: "vectors.js", onload: () => runVectors()}));
 
-   load-progression-spec.md §12 is the source of truth (spec v1.9). This file transcribes
+   load-progression-spec.md §12 is the source of truth.
+
+   KNOWN, DELIBERATE EXCEPTION: the spec is at v2.0 and this file is at v1.9,
+   because the engine is. §4 v2.0 is merged into the document but ships with
+   §13, so rows 1, 4 and 33 here still carry their v1.9 expectations and rows
+   47-52 are absent. Derived values for when it ships:
+       1  -> P_PASS  ADD        "25 ✓ → try 30"
+       4  -> P_GATED HOLD_GATE  "repeat 10 — need 23+ before 15"
+       33 -> P_PASS  ADD        "12 ✓ → try 15"
+   Until then 46/46 passing means "the engine matches the version it claims to
+   implement", which is the useful thing for this file to assert. This file transcribes
    that table; where they disagree, the table is correct and this file is
    wrong. Every row asserts class, outcome and exact text — including
    `class: null` on the short-circuit rows, which is what catches
