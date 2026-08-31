@@ -151,6 +151,19 @@
      filled tab, so dimming alone would not read as "set aside" on it. */
   .seg.days button.skipped{opacity:.55;text-decoration:line-through;text-decoration-thickness:1px}
   .daymeta{font-size:12px;color:var(--ink-3);padding:0 0 8px;font-family:var(--mono)}
+  /* Start and End: the two moments that bracket a session, so they get the only
+     full-width controls in the app. Same panel language as everything else -
+     filled, 5px corners, no border - just louder and wider. --signal to begin
+     because it is the accent that already means "this is the live thing", and
+     --logged to finish because green already means done everywhere else. */
+  .bigbtn{display:block;width:100%;appearance:none;border:none;border-radius:5px;cursor:pointer;
+    font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+    padding:17px 12px;-webkit-tap-highlight-color:transparent}
+  .startBtn{background:var(--signal);color:var(--paper);margin:2px 0 9px}
+  .endBtn{background:var(--logged);color:var(--paper)}
+  .endwrap{padding:4px 14px 10px;scroll-snap-align:start;scroll-snap-stop:always;scroll-margin-top:78px}
+  .bigbtn:active{transform:scale(.985)}
+  .bigbtn .btime{opacity:.72;letter-spacing:.08em}
 
   /* ---- sticky dashboard: session · rest · sets left ---- */
   /* Three platforms, not a ruled table. Dividing lines are table grammar -
@@ -390,7 +403,10 @@
     font-family:var(--mono);font-size:11px;letter-spacing:.08em;padding:7px 14px;border-radius:2px;opacity:0;
     transition:opacity .18s;pointer-events:none;z-index:40}
   .saving.on{opacity:1}
-  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+  @media (prefers-reduced-motion:no-preference){.bigbtn{transition:transform .12s}}
+  /* Kills animation as well as transition - the earlier version only stopped
+     transitions, which would have let any keyframe through. */
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
@@ -407,6 +423,7 @@
     <div class="seg weeks" id="weekSeg"></div>
     <div class="seg days" id="daySeg"></div>
     <div class="daymeta"><span id="dayFocus"></span></div>
+    <button class="bigbtn startBtn" id="startBtn" hidden>▸ Start session</button>
   </header>
   <div class="dash">
     <button class="dcell" id="sessBtn" aria-label="Session stopwatch: tap to start or stop">
@@ -421,6 +438,7 @@
   </div>
   <div id="bannerSlot"></div>
   <div id="days"></div>
+  <div class="endwrap"><button class="bigbtn endBtn" id="endBtn"></button></div>
   <details class="vol">
     <summary>Weekly sets by muscle</summary>
     <div class="voltbl" id="volTbl"></div>
@@ -1609,16 +1627,116 @@ function sessionReport(question){
     const pain = fb.pain ? " · PAIN" : "";
     const unit = ex.unit === "per DB" ? " per DB" : "";
     out.push(`  ${sets.join(" ")}${unit}${felt}${pain}`);
-    const note = LOG.notes[`${W}|${D}|${ex.id}`];
+    // Trimmed: notes are typed on a phone and carry a trailing space more often
+    // than not, which survived into the report.
+    const note = (LOG.notes[`${W}|${D}|${ex.id}`] || "").trim();
     if(note) out.push(`  note: ${note}`);
     out.push(`  NEXT ${suggestFor(ex).text}`, "");
   });
 
   const mins = Math.round(sessionElapsed() / 60000);
-  if(mins > 0) out.push(`Session ${mins} min.`, "");
+  if(mins > 0) out.push("", `Session ${mins} min.`, "");
   if(question) out.push(question);
   const NL = String.fromCharCode(10);
   return out.join(NL).replace(new RegExp(NL + "{3,}", "g"), NL + NL).trim();
+}
+
+/* ---- start and end of a session ----
+   Start is a one-shot: it only appears while the clock is idle, so scrolling
+   back up mid-session cannot restart anything. The clock itself stays
+   tap-to-cycle on the dashboard; this is the "begin" affordance, not a
+   replacement for it.
+
+   End PAUSES rather than zeroes. Duration lives only in the timer - it is UI
+   state, never stored per day - so zeroing would destroy the one number the
+   report wants, permanently and with no undo. Zeroing is still a long press on
+   the session cell, which is where a destructive action belongs. */
+function renderSessionButtons(){
+  const st = sessionState();
+  const day = dayComplete(W, D);
+  $("startBtn").hidden = !(st === "idle" && !day && viewingActive());
+  const eb = $("endBtn");
+  eb.hidden = !viewingActive();
+  const mins = Math.round(sessionElapsed() / 60000);
+  eb.innerHTML = st === "idle" && mins === 0
+    ? "End session &amp; report"
+    : `End session &amp; report <span class="btime">${mins} min</span>`;
+}
+
+function startSession(){
+  if(sessionState() === "idle") sessionToggle();
+  renderSessionButtons(); renderDash();
+  /* Instant, not smooth. Smooth scrolling is inert in this container - measured
+     with snapping both on and off, and with reduced-motion false - while an
+     instant jump lands exactly on the card's snap point. A decisive snap also
+     suits the gesture better than a glide. */
+  const first = $("days").querySelector(".card");
+  if(first) first.scrollIntoView({block:"start"});
+  if(navigator.vibrate) navigator.vibrate(12);
+}
+
+/* Clipboard FIRST, then the share sheet. If sharing is unavailable, cancelled,
+   or fails, the report is already on the clipboard rather than gone - which is
+   the design note's instinct, kept even though the URL half was dropped. */
+async function copyText(text){
+  try{ await navigator.clipboard.writeText(text); return true; }catch(e){}
+  // Older path, kept because it succeeds in a few places the async API refuses.
+  try{
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:-1000px;opacity:0";
+    document.body.appendChild(ta); ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  }catch(e){ return false; }
+}
+
+async function handOffReport(text){
+  const copied = await copyText(text);
+  if(navigator.share){
+    try{ await navigator.share({text}); return "SHARED"; }
+    catch(e){ /* cancelled, or no target took it: the copy above still stands */ }
+  }
+  return copied ? "REPORT COPIED" : "COULD NOT COPY";
+}
+
+/* §4 of the design note: the report must carry a specific question. A bare
+   dump invites a general review, and a general review of a deliberately
+   designed program is the least useful thing this button can produce. */
+function endSessionSheet(){
+  sessionPause();                       // stop the clock before anything reads it
+  renderSessionButtons(); renderDash();
+  const painEx = exList().find(ex => (LOG.feedback[`${W}|${D}|${ex.id}`] || {}).pain);
+  const opts = [
+    {q:"off",   name:"Something felt off",        meta:"pick the exercise next"},
+    {q:"sug",   name:"Question a suggestion",     meta:"pick the exercise next"},
+    {q:"time",  name:"Short on time next session",meta:"asks how many minutes"}
+  ];
+  // Only offered when a joint complaint was actually flagged - the question
+  // says "flagged above", and it would be a lie otherwise.
+  if(painEx) opts.push({q:"hurt", name:"Something hurt", meta:painEx.name});
+  opts.push({q:"free", name:"Ask something else", meta:"type your own"});
+  $("swapTitle").textContent = "Send the session with —";
+  $("swapOpts").innerHTML = opts.map(o =>
+    `<button class="opt qOpt" data-q="${o.q}">
+      <div class="oname">${o.name}</div><div class="ometa">${o.meta}</div>
+    </button>`).join("");
+  $("swapSheet").hidden = false;
+}
+
+function endExerciseSheet(kind){
+  $("swapTitle").textContent = "Which exercise?";
+  $("swapOpts").innerHTML = exList().map((ex, i) =>
+    `<button class="opt qEx" data-q="${kind}" data-i="${i}">
+      <div class="oname">${ex.name}</div>
+    </button>`).join("");
+}
+
+async function finishSession(question){
+  closeSwapSheet();
+  const msg = await handOffReport(sessionReport(question));
+  toastMsg(msg);
 }
 
 /* Session clock: idle -> running -> paused -> running. Tap cycles; a long
@@ -1674,6 +1792,7 @@ function renderDash(){
   $("setsCell").classList.toggle("done", n === 0 && !off);
   $("setsCell").querySelector(".dlabel").textContent =
     n === 0 ? (off ? "Day skipped" : "Day done") : "Sets left";
+  renderSessionButtons();
   tickDash();
 }
 
@@ -1991,6 +2110,36 @@ document.addEventListener("click", e=>{
   const sb = e.target.closest(".swapBtn");
   if(sb){ openSwapSheet(exList()[sb.dataset.e]); return; }
   if(refuseIfClosed() && e.target.closest(".daySkipOpt,.skipOpt,.opt")) return;   // §13.6
+  if(e.target.closest("#startBtn")){ startSession(); return; }
+  if(e.target.closest("#endBtn")){ endSessionSheet(); return; }
+  const qEx = e.target.closest(".qEx");
+  if(qEx){
+    const ex = exList()[qEx.dataset.i];
+    if(qEx.dataset.q === "off")
+      finishSession(`${ex.name} felt worse than the numbers suggest. Worth changing something, or is one bad set just a bad set?`);
+    else
+      finishSession(`My tracker says "${suggestFor(ex).text}" for ${ex.name}. Does that look right given how the session went?`);
+    return;
+  }
+  const qOpt = e.target.closest(".qOpt");
+  if(qOpt){
+    const q = qOpt.dataset.q;
+    if(q === "off" || q === "sug"){ endExerciseSheet(q); return; }
+    if(q === "time"){
+      const n = prompt("About how many minutes will you have?");
+      if(n && Number(n) > 0)
+        finishSession(`Next session I'll have about ${Number(n)} minutes. Given how this one went, what would you cut and what has to stay?`);
+      return;
+    }
+    if(q === "hurt"){
+      const ex = exList().find(x => (LOG.feedback[`${W}|${D}|${x.id}`] || {}).pain);
+      if(ex) finishSession(`${ex.name} produced a joint complaint, flagged above. What should I change before the next exposure?`);
+      return;
+    }
+    const own = prompt("What do you want to ask?");
+    if(own && own.trim()) finishSession(own.trim());
+    return;
+  }
   const dsb = e.target.closest(".daySkipOpt");
   if(dsb){
     const k = `${W}|${dsb.dataset.daySkip}`;
