@@ -1568,6 +1568,59 @@ const todayKey = () => {
   return d.getFullYear() + "-" + p(d.getMonth()+1) + "-" + p(d.getDate());
 };
 
+/* ---- session report ----
+   Formats the session just logged for a chat. Sits entirely outside the engine:
+   no rule, schema or stored data involvement - it reads what is already on
+   screen and returns a string. Nothing is sent anywhere from here.
+
+   Console-callable and deliberately not wired to a button yet. Per the design
+   note's own implementation order, the format IS the feature: it has to read
+   well pasted by hand before any plumbing is worth writing. */
+function sessionReport(question){
+  const id = activeMeso();
+  const n = id.match(/\d+/);
+  const mesoName = n ? `Meso ${n[0]}` : id;
+  const day = dayObj();
+  const out = [
+    `${mesoName} · Week ${W} · ${day.label} (${day.focus}) · target ${weekObj().rir} RIR`, "",
+    "How to read this: sets are weight×reps, working sets only. FELT is my own",
+    "effort tap for that exercise — easy, right, or brutal, relative to the target",
+    "RIR. PAIN means a joint complaint, not muscular difficulty. NEXT is what my",
+    "tracker's progression rule suggests for next week; I can override it.", ""];
+
+  exList().forEach(ex => {
+    if(isSkipped(W, D, ex.id)){ out.push(`${ex.name} — skipped`, ""); return; }
+    const sets = [];
+    for(let si = 0; si < ex.sets[W-1]; si++){
+      const c = LOG.sets[cell(W, D, ex.id, si)];
+      if(c && typeof c.reps === "number" && c.reps > 0)
+        sets.push(`${c.weight ?? "–"}×${c.reps}`);
+    }
+    // Not in the note, added on its own reasoning: an exercise with nothing
+    // logged is the same kind of absence as a skip, and silence would read to a
+    // fresh eye as "not in the program". Flagged for a ruling.
+    if(!sets.length){ out.push(`${ex.name} — not logged`, ""); return; }
+
+    out.push(`${ex.name} · ${ex.reps}`);
+    const fb = LOG.feedback[`${W}|${D}|${ex.id}`] || {};
+    // §1 reads an absent effort as "right" for evaluation only, never backfilled -
+    // so the report must not claim he tapped one when he did not.
+    const felt = fb.effort ? ` · felt ${fb.effort}` : "";
+    const pain = fb.pain ? " · PAIN" : "";
+    const unit = ex.unit === "per DB" ? " per DB" : "";
+    out.push(`  ${sets.join(" ")}${unit}${felt}${pain}`);
+    const note = LOG.notes[`${W}|${D}|${ex.id}`];
+    if(note) out.push(`  note: ${note}`);
+    out.push(`  NEXT ${suggestFor(ex).text}`, "");
+  });
+
+  const mins = Math.round(sessionElapsed() / 60000);
+  if(mins > 0) out.push(`Session ${mins} min.`, "");
+  if(question) out.push(question);
+  const NL = String.fromCharCode(10);
+  return out.join(NL).replace(new RegExp(NL + "{3,}", "g"), NL + NL).trim();
+}
+
 /* Session clock: idle -> running -> paused -> running. Tap cycles; a long
    press zeroes it. Elapsed is banked time plus the current run, so pausing
    never loses the reading and nothing accumulates tick by tick. */
