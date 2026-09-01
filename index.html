@@ -161,6 +161,8 @@
     padding:17px 12px;-webkit-tap-highlight-color:transparent}
   .startBtn{background:var(--signal);color:var(--paper);margin:2px 0 9px}
   .endBtn{background:var(--logged);color:var(--paper)}
+  /* Quieter than End: occasional, and unrelated to the clock. */
+  .reportBtn{background:var(--card-2);color:var(--ink-2);letter-spacing:.1em;margin-top:8px}
   .endwrap{padding:4px 14px 10px;scroll-snap-align:start;scroll-snap-stop:always;scroll-margin-top:78px}
   .bigbtn:active{transform:scale(.985)}
   .bigbtn .btime{opacity:.72;letter-spacing:.08em}
@@ -453,7 +455,10 @@
   </div>
   <div id="bannerSlot"></div>
   <div id="days"></div>
-  <div class="endwrap"><button class="bigbtn endBtn" id="endBtn"></button></div>
+  <div class="endwrap">
+    <button class="bigbtn endBtn" id="endBtn"></button>
+    <button class="bigbtn reportBtn" id="reportBtn">Send report to a chat</button>
+  </div>
   <details class="vol">
     <summary>Weekly sets by muscle</summary>
     <div class="voltbl" id="volTbl"></div>
@@ -1701,11 +1706,14 @@ function renderSessionButtons(){
      as the only way to begin. That is where the carried-over total came from. */
   $("startBtn").hidden = !(st !== "running" && !day && !dayHasLoggedWork() && viewingActive());
   const eb = $("endBtn");
-  eb.hidden = !viewingActive();
-  const mins = Math.round(sessionElapsed() / 60000);
-  eb.innerHTML = st === "idle" && mins === 0
-    ? "End session &amp; report"
-    : `End session &amp; report <span class="btime">${mins} min</span>`;
+  /* Offered only while a session is running, because it is now the only thing
+     that ends one. Nothing else stops the clock. */
+  eb.hidden = !(st === "running" && viewingActive());
+  eb.innerHTML = `End session <span class="btime">${Math.round(sessionElapsed()/60000)} min</span>`;
+  /* The report reads logged sets, not the clock, so it stands on its own: during
+     a session, after it, or days later. Hidden only when there is nothing to
+     report. */
+  $("reportBtn").hidden = !(viewingActive() && dayHasLoggedWork());
 }
 
 function startSession(){
@@ -1755,9 +1763,13 @@ async function handOffReport(text){
 /* §4 of the design note: the report must carry a specific question. A bare
    dump invites a general review, and a general review of a deliberately
    designed program is the least useful thing this button can produce. */
-function endSessionSheet(){
-  sessionPause();                       // stop the clock before anything reads it
+function endSession(){
+  sessionPause();
   renderSessionButtons(); renderDash();
+  if(navigator.vibrate) navigator.vibrate([12, 60, 12]);
+}
+
+function reportSheet(){
   const painEx = exList().find(ex => (LOG.feedback[`${W}|${D}|${ex.id}`] || {}).pain);
   const opts = [
     {q:"off",   name:"Something felt off",        meta:"pick the exercise next"},
@@ -2162,7 +2174,8 @@ document.addEventListener("click", e=>{
   if(sb){ openSwapSheet(exList()[sb.dataset.e]); return; }
   if(refuseIfClosed() && e.target.closest(".daySkipOpt,.skipOpt,.opt")) return;   // §13.6
   if(e.target.closest("#startBtn")){ startSession(); return; }
-  if(e.target.closest("#endBtn")){ endSessionSheet(); return; }
+  if(e.target.closest("#endBtn")){ endSession(); return; }
+  if(e.target.closest("#reportBtn")){ reportSheet(); return; }
   const qEx = e.target.closest(".qEx");
   if(qEx){
     const ex = exList()[qEx.dataset.i];
@@ -2314,9 +2327,12 @@ document.addEventListener("click", e=>{
     // Unchecking is a correction, not a set, and starts nothing.
     if(nowDone) STORE.timers.restStart = Date.now();
     save(); renderDay(); renderDash();
-    if(setsLeft() === 0){                 // day done: freeze the total, stop resting
-      STORE.timers.restStart = null;
-      sessionPause();                     // saves and repaints the dashboard
+    if(setsLeft() === 0){
+      /* The last set ends the rest interval - there is nothing left to rest for -
+         but NOT the session. End is the only thing that stops the clock now,
+         because the clock measures time at the gym rather than time training,
+         and the walk out is part of that. */
+      STORE.timers.restStart = null; save(); tickDash();
     }
     return;
   }
