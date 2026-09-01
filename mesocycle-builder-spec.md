@@ -254,11 +254,18 @@ the report reads logged sets, not the clock, so it works during a session, after
 later, while End is only offered while a session is running. The report button appears whenever
 the day in view has logged work.
 
-**Known cost, accepted.** Nothing now stops a forgotten clock. If he leaves without pressing
-End, it runs until the next launch on a later day clears it as stale, and that session's
-duration is lost. Auto-pause used to cover that case. Owning the end moment means owning the
-risk of not marking it; a duration that is absent is at least visibly absent, where one that
-silently stopped early is not.
+**A forgotten clock is discarded at two hours.** Removing auto-pause left nothing to stop a
+session he walked away from. Two hours is his own bound — he is never at the gym longer and
+calls two a stretch.
+
+It **discards rather than caps**. A clock still running at two hours means End was never
+pressed, so the duration is unknown, not two hours. Capping would write a plausible-looking
+number wrong by however long he had already left, and that number would then feed the pace
+calibration this section wants to derive from real sessions. An absent duration is honestly
+absent.
+
+The guard fires only on a **running** clock. A paused one over two hours is a session he ended
+and is left alone, so a genuinely long session that was marked properly still counts.
 
 **The weekly-sets-by-muscle table is always visible while editing.** Not behind a disclosure,
 not on another tab. It is the single most valuable thing on the page: the first conversation

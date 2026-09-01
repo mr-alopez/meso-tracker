@@ -1836,7 +1836,28 @@ function sessionZero(){
   save(); tickDash(); syncWakeLock();
 }
 
+/* Removing auto-pause left nothing to stop a clock he walked away from, so it
+   would have run until the next day's staleness check cleared it. Two hours is
+   his own bound - he is never at the gym longer, and calls two a stretch.
+
+   It DISCARDS rather than caps. A session still running at two hours means End
+   was never pressed, so the duration is unknown, not two hours. Capping would
+   write a plausible-looking number that is wrong by however long he had already
+   left, and that number would then feed the pace calibration the builder wants
+   to derive from real sessions. An absent duration is honestly absent. */
+const SESSION_MAX = 2 * 3600 * 1000;
+
+function dropForgottenSession(){
+  const t = STORE.timers;
+  if(!t.sessionStart || sessionElapsed() <= SESSION_MAX) return false;
+  t.sessionStart = null; t.sessionAccum = 0; t.sessionDay = null; t.restStart = null;
+  save(); syncWakeLock();
+  return true;
+}
+
 function tickDash(){
+  // Fires at most once: afterwards there is no running session to find.
+  if(dropForgottenSession()){ renderSessionButtons(); toastMsg("SESSION LEFT RUNNING — CLEARED"); }
   const t = STORE.timers, st = sessionState();
   $("sessVal").textContent = st === "idle" ? "0:00" : fmtClock(sessionElapsed());
   $("restVal").textContent = t.restStart ? fmtClock(Date.now() - t.restStart) : "0:00";
