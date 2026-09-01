@@ -202,7 +202,8 @@
   /* Set aside for today: dimmed and named as such, but every row is left in
      place so restoring it costs one tap and loses nothing. */
   .card.skipped{opacity:.55;border-top-color:var(--ink-3)}
-  .card.skipped .suggest, .card.skipped .cue{display:none}
+  .card.skipped .say, .card.skipped .cuewrap{display:none}
+  .card.skipped .todo{border-left-color:var(--line-2)}
   .exhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;cursor:grab;
     user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
   /* Now the only control in the header, so it stops being a 24px glyph you
@@ -266,10 +267,28 @@
   /* The name was 19px while the active set's number is 21px - the title read
      smaller than the data under it. It leads the card, so it leads the scale. */
   .exname{font-size:23px;font-weight:700;letter-spacing:-.015em;margin:2px 0 2px;line-height:1.15}
-  .prescriberow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
-  .prescribe{font-family:var(--mono);font-size:13px;color:var(--signal)}
+  /* Prescription and suggestion are one statement - what to do today - and had
+     been sitting either side of the cue, which answers a different question on a
+     different clock. The suggestion leads because it is the part that moves. */
+  .todo{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
+    border-left:2px solid var(--signal);padding:7px 0 7px 9px;margin-bottom:10px}
+  .todo.warn{border-left-color:var(--deload)}
+  .todoline{min-width:0}
+  .say{font-family:var(--mono);font-size:15px;color:var(--ink);line-height:1.3}
+  .todo.warn .say{color:var(--deload)}
+  .prescribe{font-family:var(--mono);font-size:12px;color:var(--ink-3);margin-top:3px}
+  /* Subordinate to the instruction above it, and collapsed once the exercise has
+     history in this block - which is what "New." was reaching for, computed
+     rather than typed. See cue-policy.md §3. */
   .cue{font-size:13px;color:var(--ink-2);background:var(--cue-bg);border-left:2px solid var(--line);
     padding:7px 9px;margin:0 0 10px}
+  details.cuewrap{margin:0 0 10px}
+  details.cuewrap .cue{margin:6px 0 0}
+  details.cuewrap > summary{list-style:none;cursor:pointer;font-family:var(--mono);font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);padding:3px 0}
+  details.cuewrap > summary::-webkit-details-marker{display:none}
+  details.cuewrap > summary::after{content:" +";color:var(--line)}
+  details.cuewrap[open] > summary::after{content:" \2212";color:var(--line)}
 
   /* ---- set rows ---- */
   .hdr{display:grid;grid-template-columns:28px 1fr 1fr 46px;gap:8px;align-items:center;
@@ -353,9 +372,6 @@
   .note::placeholder{color:var(--placeholder)}
 
   /* ---- progression suggestion + feedback ---- */
-  .suggest{font-family:var(--mono);font-size:13px;color:var(--ink-2);border-left:2px solid var(--signal);
-    padding:6px 9px;margin:0 0 10px}
-  .suggest.warn{border-left-color:var(--deload)}
   .fbrow{display:flex;align-items:center;gap:5px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line-2)}
   .fbl{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-right:1px}
   .fb{appearance:none;border:none;background:var(--card-2);color:var(--ink-3);
@@ -1456,8 +1472,17 @@ function renderDay(){
   $("days").innerHTML = exList().map((ex,ei)=>{
     const n = ex.sets[W-1];
     // §13.6: fields in a closed block are disabled, not merely ignored.
-    const ro = viewingActive() ? "" : " disabled";
+    /* cue-policy.md §2: the push-up's "leave the weight field empty" was the
+       interface asking to be fixed. loadSense "none" already means there is no
+       load, so the field is disabled rather than explained. */
+    const ro = (viewingActive() && ex.loadSense !== "none") ? "" : " disabled";
+    const repsRo = viewingActive() ? "" : " disabled";
     const sug = suggestFor(ex);
+    /* cue-policy.md §3: open while the exercise has no history in this block,
+       closed once it has. This is the NO_DATA the engine already computes, so a
+       carried-over exercise in a new block starts closed and a genuinely new one
+       opens until it is logged - with nobody editing any text. */
+    const cueOpen = /^NO_DATA/.test(sug.outcome);
     /* The weight field hints the load the engine is actually suggesting, not
        PROGRAM's start. `start` never changes across a block, so from week 2 the
        field greyed in the number he began at while the ghost under it read
@@ -1487,7 +1512,7 @@ function renderDay(){
           <span class="ghost">${noWeight ? "no weight" : ghost}</span>
         </div>
         <div class="fieldwrap">
-          <input type="number" inputmode="numeric" data-f="r" data-e="${ei}" data-s="${si}" value="${c.reps??""}"${ro}>
+          <input type="number" inputmode="numeric" data-f="r" data-e="${ei}" data-s="${si}" value="${c.reps??""}"${repsRo}>
           <span class="ghost"></span>
         </div>
         <button class="chk" data-e="${ei}" data-s="${si}" aria-pressed="${!!c.done}" aria-label="Mark set ${si+1} done">
@@ -1511,8 +1536,11 @@ function renderDay(){
           <circle cx="2.5" cy="14" r="1.6"/><circle cx="7.5" cy="14" r="1.6"/>
         </svg></div>
       </div>
-      <div class="prescriberow">
-        <div class="prescribe">${n} × ${ex.reps}${ex.unit?` · ${ex.unit}`:""} · ${weekObj().rir} RIR</div>
+      <div class="todo ${/^(DELOAD|PAIN)/.test(sug.outcome)?"warn":""}">
+        <div class="todoline">
+          <div class="say">${sug.text}</div>
+          <div class="prescribe">${n} × ${ex.reps}${ex.unit?` · ${ex.unit}`:""} · ${weekObj().rir} RIR</div>
+        </div>
         <div class="rowbtns">
           <a class="vidBtn" href="https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + " form")}"
              target="_blank" rel="noopener noreferrer" aria-label="Search YouTube for ${ex.name} form">
@@ -1523,8 +1551,7 @@ function renderDay(){
           </button>
         </div>
       </div>
-      ${ex.cue?`<div class="cue">${ex.cue}</div>`:""}
-      <div class="suggest ${/^(DELOAD|PAIN)/.test(sug.outcome)?"warn":""}">${sug.text}</div>
+      ${ex.cue?`<details class="cuewrap" ${cueOpen?"open":""}><summary>How to do it</summary><div class="cue">${ex.cue}</div></details>`:""}
       <div class="hdr"><div></div><div>Weight</div><div>Reps</div><div></div></div>
       ${warmSection(ex, ei)}
       ${rows}
