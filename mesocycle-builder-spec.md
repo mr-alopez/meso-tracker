@@ -240,17 +240,25 @@ Two consequences:
 - The one measurement reads **43.3 min ÷ 18 working sets ≈ 2.4 min/set, all-in.** Recorded as
   an observation, not a calibration — the constant still comes from stored durations per §7.
 
-**[open] Auto-pause contradicts this.** The session clock pauses itself when the last working
-set is checked, which is where training stops, not where he leaves. Under a door-to-door
-definition every stored duration is short by however long the cool-down and walk-out take, and
-short by a different amount each time.
+### Decided: End is the only thing that ends a session
 
-The tension is worth resolving before durations are stored, because it decides what is being
-stored. Either the clock means training time — in which case auto-pause is correct and §7 is
-measuring the right thing, since whether the *work* fits an hour is the useful question — or it
-means door-to-door, in which case End should define the end and auto-pause should go. His call;
-he has said door-to-door, but auto-pause was a feature he asked for before durations meant
-anything.
+Auto-pause on the last working set is **removed**. It stopped the clock where training stops,
+not where he leaves, so under a door-to-door definition every duration would have been short by
+the cool-down and walk-out — and short by a different amount each time, which is worse than
+being consistently short.
+
+The last set still ends the *rest* interval, since there is nothing left to rest for.
+
+**End and the report are now separate buttons.** They were one control doing two unrelated jobs:
+the report reads logged sets, not the clock, so it works during a session, after it, or days
+later, while End is only offered while a session is running. The report button appears whenever
+the day in view has logged work.
+
+**Known cost, accepted.** Nothing now stops a forgotten clock. If he leaves without pressing
+End, it runs until the next launch on a later day clears it as stale, and that session's
+duration is lost. Auto-pause used to cover that case. Owning the end moment means owning the
+risk of not marking it; a duration that is absent is at least visibly absent, where one that
+silently stopped early is not.
 
 **The weekly-sets-by-muscle table is always visible while editing.** Not behind a disclosure,
 not on another tab. It is the single most valuable thing on the page: the first conversation
