@@ -227,12 +227,30 @@ it, and is then not a guardrail.**
 - **Derive the constant from stored durations**, rather than retuning it now. One measurement is
   not a calibration.
 
-**[open] What the 43.3 minutes measured.** That session predates the Start button by 22 minutes
-— it was a manual tap on the dashboard cell, so only he knows whether the clock was running
-during warm-ups. Two consequences: the single historical figure is not safely comparable to
-anything, and **if Start is habitually tapped before warm-ups, stored durations already contain
-them and a separate `+8 min` warm-up term double-counts.** Resolve before deriving a constant;
-prefer a single per-set rate over a rate plus a warm-up allowance.
+### Decided: what the clock measures
+
+**The session clock measures time at the gym.** He starts it on arrival, before warming up, and
+it runs until he leaves. Confirmed for the one historical session too — the clock was already
+running through those warm-ups.
+
+Two consequences:
+
+- **No separate warm-up term.** Warm-up time is already inside every stored duration, so
+  `+8 min` on top double-counts it. The model is a single all-in per-set rate.
+- The one measurement reads **43.3 min ÷ 18 working sets ≈ 2.4 min/set, all-in.** Recorded as
+  an observation, not a calibration — the constant still comes from stored durations per §7.
+
+**[open] Auto-pause contradicts this.** The session clock pauses itself when the last working
+set is checked, which is where training stops, not where he leaves. Under a door-to-door
+definition every stored duration is short by however long the cool-down and walk-out take, and
+short by a different amount each time.
+
+The tension is worth resolving before durations are stored, because it decides what is being
+stored. Either the clock means training time — in which case auto-pause is correct and §7 is
+measuring the right thing, since whether the *work* fits an hour is the useful question — or it
+means door-to-door, in which case End should define the end and auto-pause should go. His call;
+he has said door-to-door, but auto-pause was a feature he asked for before durations meant
+anything.
 
 **The weekly-sets-by-muscle table is always visible while editing.** Not behind a disclosure,
 not on another tab. It is the single most valuable thing on the page: the first conversation
