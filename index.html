@@ -1666,10 +1666,26 @@ function sessionReport(question){
    state, never stored per day - so zeroing would destroy the one number the
    report wants, permanently and with no undo. Zeroing is still a long press on
    the session cell, which is where a destructive action belongs. */
+/* Is there completed work on the day in view? This is what makes zeroing safe:
+   Start is only offered on a day nothing has been logged for, so it can never
+   discard the clock of a session already under way. */
+function dayHasLoggedWork(){
+  return exList().some(ex => {
+    for(let si = 0; si < ex.sets[W-1]; si++)
+      if(LOG.sets[cell(W, D, ex.id, si)]?.done) return true;
+    return false;
+  });
+}
+
 function renderSessionButtons(){
   const st = sessionState();
   const day = dayComplete(W, D);
-  $("startBtn").hidden = !(st === "idle" && !day && viewingActive());
+  /* Offered whenever this day has not been begun and nothing is running - NOT
+     only when the clock reads zero. The clock is global while a session belongs
+     to a day, so after finishing Monday it sits PAUSED with time on it, which
+     hid Start on every later day and left the dashboard cell - which RESUMES -
+     as the only way to begin. That is where the carried-over total came from. */
+  $("startBtn").hidden = !(st !== "running" && !day && !dayHasLoggedWork() && viewingActive());
   const eb = $("endBtn");
   eb.hidden = !viewingActive();
   const mins = Math.round(sessionElapsed() / 60000);
@@ -1679,7 +1695,13 @@ function renderSessionButtons(){
 }
 
 function startSession(){
-  if(sessionState() === "idle") sessionToggle();
+  /* Zero first. Start means "this session begins now", so time banked by an
+     earlier session is not part of it. Safe because the button is hidden the
+     moment this day has any logged work. */
+  const t = STORE.timers;
+  t.sessionAccum = 0; t.sessionStart = Date.now(); t.sessionDay = todayKey();
+  t.restStart = null;
+  save(); syncWakeLock();
   renderSessionButtons(); renderDash();
   /* Instant, not smooth. Smooth scrolling is inert in this container - measured
      with snapping both on and off, and with reduced-motion false - while an
