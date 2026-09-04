@@ -235,9 +235,13 @@
      back under the bar or off the bottom - which is the field being "a hair
      cut off" once the keyboard is up. */
   .wrap.typing{scroll-snap-type:none}
-  /* Video and swap live on the prescription line now, not the header - the
-     header is the title and the drag handle, nothing else. */
-  .rowbtns{display:flex;align-items:center;gap:6px;flex:none}
+  /* Video and swap ride the muscle-tag line. That line was nearly empty and
+     the buttons cost no row of their own there, which is what paid for the
+     larger type below. The tag ellipsises rather than wraps, so no label can
+     push them off. */
+  .tagrow{display:flex;align-items:center;gap:6px;min-width:0}
+  .exmain{min-width:0;flex:1}
+  .tagrow .tag{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .swapBtn,.vidBtn{appearance:none;border:none;background:transparent;
     width:34px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;
     text-decoration:none}
@@ -265,28 +269,30 @@
   /* Sole option in the day sheet, so no separating margin above it. */
   .opt.daySkipOpt{border-color:var(--deload)}
   .opt.daySkipOpt .oname{color:var(--deload)}
-  .tag{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+  .tag{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
   /* The name was 19px while the active set's number is 21px - the title read
      smaller than the data under it. It leads the card, so it leads the scale. */
   .exname{font-size:23px;font-weight:700;letter-spacing:-.015em;margin:2px 0 2px;line-height:1.15}
   /* Prescription and suggestion are one statement - what to do today - and had
      been sitting either side of the cue, which answers a different question on a
      different clock. The suggestion leads because it is the part that moves. */
-  .todo{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
+  .todo{display:flex;align-items:flex-start;
     border-left:2px solid var(--signal);padding:7px 0 7px 9px;margin-bottom:10px}
   .todo.warn{border-left-color:var(--deload)}
-  .todoline{min-width:0}
-  .say{font-family:var(--mono);font-size:17px;color:var(--ink);line-height:1.3}
+  .todoline{min-width:0;flex:1}
+  .say{font-family:var(--mono);font-size:21px;color:var(--ink);line-height:1.3}
   .todo.warn .say{color:var(--deload)}
-  .prescribe{font-family:var(--mono);font-size:13px;color:var(--ink-3);margin-top:3px}
+  /* Sets, reps and RIR are what he works to, not metadata about the card, and
+     they were the smallest thing on it. Instruction size, same as the cue. */
+  .prescribe{font-family:var(--mono);font-size:17px;color:var(--ink-3);margin-top:3px}
   /* Subordinate to the instruction above it, and collapsed once the exercise has
      history in this block - which is what "New." was reaching for, computed
      rather than typed. See cue-policy.md §3. */
-  .cue{font-size:15px;color:var(--ink-2);background:var(--cue-bg);border-left:2px solid var(--line);
+  .cue{font-size:17px;color:var(--ink-2);background:var(--cue-bg);border-left:2px solid var(--line);
     padding:7px 9px;margin:0 0 10px}
   details.cuewrap{margin:0 0 10px}
   details.cuewrap .cue{margin:6px 0 0}
-  details.cuewrap > summary{list-style:none;cursor:pointer;font-family:var(--mono);font-size:13px;
+  details.cuewrap > summary{list-style:none;cursor:pointer;font-family:var(--mono);font-size:15px;
     letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);padding:3px 0}
   details.cuewrap > summary::-webkit-details-marker{display:none}
   details.cuewrap > summary::after{content:" +";color:var(--line)}
@@ -340,23 +346,9 @@
   .chk[aria-pressed="true"] svg{stroke:#fff}
   .row.logged input{color:var(--ink-2);background:var(--field-logged)}
 
-  /* Warm-up sets: amber, since amber already means sub-maximal here (deload,
-     paused). Quieter than the working rows and carrying no checkbox, because a
-     warm-up is a record rather than a task. */
-  .warmbar{display:flex;gap:1px;background:var(--line-2);margin:2px 0 0}
-  .wtoggle{flex:1;appearance:none;border:none;border-left:3px solid var(--deload);
-    background:var(--banner-bg);color:var(--deload);font-family:var(--mono);font-size:13px;
-    font-weight:700;letter-spacing:.12em;text-transform:uppercase;text-align:left;
-    padding:10px;cursor:pointer}
-  .wplus{appearance:none;border:none;background:var(--banner-bg);color:var(--deload);
-    font-family:var(--mono);font-size:20px;font-weight:700;line-height:1;width:46px;
-    cursor:pointer;padding:0}
-  .row.warm{border-top:none}
   .row.noweight{box-shadow:inset 0 0 0 1px var(--deload)}
   .row.noweight .setno{color:var(--deload)}
   .row.noweight .ghost{color:var(--deload)}
-  .row.warm .setno{color:var(--deload)}
-  .row.warm input[type=number]{border-color:var(--line-2)}
 
   /* The Done button only has to dismiss the keyboard - the note saves as you
      type - so it stays out of the way until the field is actually in use.
@@ -794,9 +786,10 @@ function resolveEx(p, dayKey){
    for that day: its sets stop counting toward the day being finished, and it
    keeps no data, so the following week reads through it to the last week that
    has some (spec sec.1 reference week).
-   warmups: "week|day|exercise id|idx" -> {weight, reps}. Deliberately a
-   separate map: suggestLoad reads sets only, and a ramp recorded as working
-   sets is exactly what the spec's MIXED rule exists to reject.
+   warmups: "week|day|exercise id|idx" -> {weight, reps}. No longer read or
+   written - the warm-up section came out after a block of going unused. The
+   map is kept rather than migrated away because whatever was recorded in it
+   is logged evidence, and tidying a dead key is not worth destroying that.
    notes: "week|day|exercise id" -> string
    order: dayKey -> [program exercise ids], drag-to-reorder override of PROGRAM order
    swaps: dayKey -> { programExId: replacementExId }, same-slot substitutions.
@@ -1082,7 +1075,7 @@ function createBlock(newId, programId){
 
 /* §13.6. Viewing a closed block never writes to it. The disabled attribute on
    the fields is the visible half; this is the half that catches every other
-   write path - check-off, swap, skip, note, warm-up, feedback - since the
+   write path - check-off, swap, skip, note, feedback - since the
    rationale is that a mis-tap must not silently corrupt earlier evidence. */
 function refuseIfClosed(){ return !viewingActive(); }
 
@@ -1373,8 +1366,8 @@ function suggestFor(ex){
 }
 
 /* ---- where to open ----
-   A day is done when every working set on it is checked off; warm-ups are not
-   sets and never count. On launch we step forward from wherever we left off,
+   A day is done when every working set on it is checked off. On launch we
+   step forward from wherever we left off,
    past days already finished, and stop at the first one with work left. We
    only ever move forward: a finished week 1 should not drag you back to it,
    and nothing left to do means stay put rather than wrap around.
@@ -1420,56 +1413,6 @@ function renderHeader(){
   $("rirLabel").innerHTML = `Target RIR <b>${weekObj().rir}</b>`;
   $("dayFocus").textContent = dayObj().focus;
   $("bannerSlot").innerHTML = weekObj().note ? `<div class="banner">${weekObj().note}</div>` : "";
-}
-
-/* ---- warm-up sets ----
-   Kept out of LOG.sets on purpose. suggestLoad, setsLeft and activeKey all
-   read working sets only, so warm-ups cannot skew a suggestion, the count of
-   sets remaining, or where the active marker sits. Open state and row count
-   live in memory: they are view state, not training data. */
-const warmKey = (w,d,exId,i) => `${w}|${d}|${exId}|${i}`;
-const warmUi = ex => `${W}|${D}|${ex.id}`;
-const warmOpenState = new Map();   // ui key -> bool; absent means "open if there is data"
-const warmShown = new Map();       // ui key -> how many rows to draw
-
-function warmCount(ex){
-  let n = 0;
-  for(let i = 0; i < 20; i++) if(LOG.warmups[warmKey(W,D,ex.id,i)]) n = i + 1;
-  return n;
-}
-function warmIsOpen(ex){
-  const k = warmUi(ex);
-  return warmOpenState.has(k) ? warmOpenState.get(k) : warmCount(ex) > 0;
-}
-function warmRowCount(ex){
-  return Math.max(warmCount(ex), warmShown.get(warmUi(ex)) || 1);
-}
-
-function warmSection(ex, ei){
-  const open = warmIsOpen(ex), n = warmCount(ex);
-  const bar = `<div class="warmbar">
-        <button class="wtoggle" data-warm="${ei}" aria-expanded="${open}">Warm up${n ? ` · ${n}` : ""}</button>
-        ${open ? `<button class="wplus" data-warmadd="${ei}" aria-label="Add a warm-up set">+</button>` : ""}
-      </div>`;
-  if(!open) return bar;
-  const rows = Array.from({length: warmRowCount(ex)}, (_, i) => {
-    const c = LOG.warmups[warmKey(W,D,ex.id,i)] || {};
-    return `<div class="row warm">
-        <div class="setno">W${i+1}</div>
-        <div class="fieldwrap">
-          <input type="number" inputmode="decimal" step="0.5" data-wf="w" data-e="${ei}" data-i="${i}"
-            value="${c.weight ?? ""}">
-          <span class="ghost"></span>
-        </div>
-        <div class="fieldwrap">
-          <input type="number" inputmode="numeric" data-wf="r" data-e="${ei}" data-i="${i}"
-            value="${c.reps ?? ""}">
-          <span class="ghost"></span>
-        </div>
-        <div></div>
-      </div>`;
-  }).join("");
-  return bar + rows;
 }
 
 function renderDay(){
@@ -1530,8 +1473,17 @@ function renderDay(){
     const skipped = isSkipped(W, D, ex.id);
     return `<div class="card ${allDone?'done':''} ${ex.swapped?'swapped':''} ${skipped?'skipped':''}" data-ex="${ex.programId}" data-sug-load="${Number.isFinite(sug.load)?sug.load:""}">
       <div class="exhead">
-        <div>
-          <div class="tag">${skipped?'Skipped today':`${ex.muscle}${ex.swapped?' · swapped in':''}`}</div>
+        <div class="exmain">
+          <div class="tagrow">
+            <div class="tag">${skipped?'Skipped today':ex.muscle}</div>
+            <a class="vidBtn" href="https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + " form")}"
+               target="_blank" rel="noopener noreferrer" aria-label="Search YouTube for ${ex.name} form">
+              <svg viewBox="0 0 24 24"><polygon points="8,5 19,12 8,19"/></svg>
+            </a>
+            <button class="swapBtn" data-e="${ei}" aria-label="Swap ${ex.name} for another ${LIBRARY.slots[ex.slot].label.toLowerCase()} exercise">
+              <svg viewBox="0 0 24 24"><path d="M4 7h13M14 3l4 4-4 4M20 17H7M10 13l-4 4 4 4"/></svg>
+            </button>
+          </div>
           <div class="exname">${ex.name}</div>
         </div>
         <div class="grip" aria-hidden="true"><svg viewBox="0 0 10 16">
@@ -1545,19 +1497,9 @@ function renderDay(){
           <div class="say">${sug.text}</div>
           <div class="prescribe">${n} × ${ex.reps}${ex.unit?` · ${ex.unit}`:""} · ${weekObj().rir} RIR</div>
         </div>
-        <div class="rowbtns">
-          <a class="vidBtn" href="https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + " form")}"
-             target="_blank" rel="noopener noreferrer" aria-label="Search YouTube for ${ex.name} form">
-            <svg viewBox="0 0 24 24"><polygon points="8,5 19,12 8,19"/></svg>
-          </a>
-          <button class="swapBtn" data-e="${ei}" aria-label="Swap ${ex.name} for another ${LIBRARY.slots[ex.slot].label.toLowerCase()} exercise">
-            <svg viewBox="0 0 24 24"><path d="M4 7h13M14 3l4 4-4 4M20 17H7M10 13l-4 4 4 4"/></svg>
-          </button>
-        </div>
       </div>
       ${ex.cue?`<details class="cuewrap" ${cueOpen?"open":""}><summary>How to do it</summary><div class="cue">${ex.cue}</div></details>`:""}
       <div class="hdr"><div></div><div>Weight</div><div>Reps</div><div></div></div>
-      ${warmSection(ex, ei)}
       ${rows}
       <div class="fbrow">
         ${["easy","right","brutal"].map(o=>
@@ -2290,7 +2232,7 @@ document.addEventListener("click", e=>{
     save(); tickDash(); return;
   }
   // §13.6: everything below this line writes to the block.
-  if(refuseIfClosed() && e.target.closest(".fb,.wplus,.chk,.noteDone")) return;
+  if(refuseIfClosed() && e.target.closest(".fb,.chk,.noteDone")) return;
   const fbBtn = e.target.closest(".fb");
   if(fbBtn){
     const k = `${W}|${D}|${exList()[fbBtn.dataset.e].id}`;
@@ -2303,18 +2245,6 @@ document.addEventListener("click", e=>{
     else LOG.feedback[k] = cur;
     save(); renderDay();
     return;
-  }
-  const wt = e.target.closest(".wtoggle");
-  if(wt){
-    const ex = exList()[wt.dataset.warm];
-    warmOpenState.set(warmUi(ex), !warmIsOpen(ex));
-    renderDay(); return;
-  }
-  const wp = e.target.closest(".wplus");
-  if(wp){
-    const ex = exList()[wp.dataset.warmadd];
-    warmShown.set(warmUi(ex), warmRowCount(ex) + 1);
-    renderDay(); return;
   }
   const nd = e.target.closest(".noteDone");
   if(nd){ const ta = nd.parentNode.querySelector(".note"); if(ta) ta.blur(); return; }
@@ -2376,19 +2306,6 @@ document.addEventListener("click", e=>{
 document.addEventListener("input", e=>{
   if(refuseIfClosed()) return;                                                   // §13.6
   const inp = e.target;
-  if(inp.dataset.wf){
-    const k = warmKey(W, D, exList()[inp.dataset.e].id, inp.dataset.i);
-    const rec = LOG.warmups[k] || {};
-    rec[inp.dataset.wf === "w" ? "weight" : "reps"] = inp.value === "" ? null : Number(inp.value);
-    if(rec.weight == null && rec.reps == null) delete LOG.warmups[k];   // emptied means gone
-    else LOG.warmups[k] = rec;
-    // Repaint just the bar count: a full re-render here would steal focus mid-entry.
-    const bar = inp.closest(".card").querySelector(".wtoggle");
-    const wc = warmCount(exList()[inp.dataset.e]);
-    if(bar) bar.textContent = "Warm up" + (wc ? " · " + wc : "");
-    save();
-    return;
-  }
   if(inp.dataset.f){
     const k = cell(W,D,exList()[inp.dataset.e].id,inp.dataset.s);
     LOG.sets[k] = LOG.sets[k] || {};
