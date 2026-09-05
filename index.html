@@ -313,6 +313,13 @@
   .sheet{position:fixed;left:0;right:0;bottom:0;z-index:71;max-width:560px;margin:0 auto;
     background:var(--card);border-top:2px solid var(--ink);max-height:85vh;overflow-y:auto;
     padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
+  /* The note editor opens against the TOP instead. Every other sheet is a list
+     of options with no keyboard behind it, and the bottom is the right place
+     for a thumb - but the note summons a keyboard, and a bottom sheet is then
+     shoved upward as the keyboard animates in, which is the jerk he saw.
+     Anchored to the top it does not move at all. */
+  #swapSheet.atTop .sheet{top:0;bottom:auto;border-top:none;border-bottom:2px solid var(--ink);
+    padding:calc(14px + env(safe-area-inset-top)) 14px 14px}
   .sheetTitle{font-family:var(--mono);font-size:13px;letter-spacing:.12em;text-transform:uppercase;
     color:var(--ink-2);margin-bottom:10px}
   .opt{display:block;width:100%;text-align:left;appearance:none;background:transparent;border:1px solid var(--line-2);
@@ -1843,6 +1850,7 @@ function openNoteSheet(ei){
   // Set as a value, never as markup: this is the one string the user types.
   const ta = $("swapOpts").querySelector(".noteEdit");
   ta.value = val;
+  $("swapSheet").classList.add("atTop");
   $("swapSheet").hidden = false;
   ta.focus();
   ta.setSelectionRange(val.length, val.length);   // caret at the end, not the start
@@ -2253,6 +2261,7 @@ function closeSwapSheet(){
   // paths render themselves.
   const redraw = !!$("swapOpts").querySelector(".noteEdit, #roList");
   $("swapSheet").hidden = true;
+  $("swapSheet").classList.remove("atTop");
   if(redraw) renderDay();
 }
 
