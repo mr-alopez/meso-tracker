@@ -238,14 +238,29 @@
   .rorow.ro-skip{opacity:.55}
   .rorow.ro-drag{border-color:var(--signal);position:relative;z-index:1;
     box-shadow:0 8px 22px rgba(8,11,14,.45)}
-  .rogrip{flex:none;width:44px;height:58px;display:flex;align-items:center;justify-content:center;
+  .rohint{font-family:var(--mono);font-size:13px;color:var(--ink-3);margin:-4px 0 10px}
+  .rogrip{flex:none;width:40px;height:58px;display:flex;align-items:center;justify-content:center;
     touch-action:none;cursor:grab}
-  .rogrip svg{width:13px;height:21px;fill:var(--line);display:block}
+  /* Two things the handle got wrong at first. It was painted in --line, the
+     faintest token in the palette, so it read as a divider rather than a
+     control - nothing on the row said "drag me". And the <svg> inside it was
+     the hit-test target, which is the element touch-action is resolved
+     against; pointer-events:none hands the gesture to the handle itself. */
+  .rogrip svg{width:13px;height:21px;fill:var(--ink-3);display:block;pointer-events:none}
   .roline{min-width:0;flex:1}
   .rotag{font-family:var(--mono);font-size:13px;letter-spacing:.12em;text-transform:uppercase;
     color:var(--ink-3)}
   .roname{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .ronum{flex:none;font-family:var(--mono);font-size:13px;color:var(--ink-3)}
+  /* Arrows as well as dragging. A drag is one gesture for a long move, but it
+     is also the gesture a phone is worst at: sweaty hands, a moving target,
+     and a browser that may claim the swipe as a scroll. A tap cannot be
+     misread, and it places exactly. */
+  .roup,.rodown{flex:none;width:38px;height:58px;appearance:none;border:none;background:transparent;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  .roup svg,.rodown svg{width:15px;height:15px;stroke:var(--ink-2);stroke-width:2.5;fill:none;
+    stroke-linecap:square;pointer-events:none}
+  .rodown svg{transform:rotate(180deg)}
+  .roup[disabled],.rodown[disabled]{opacity:.25;cursor:default}
   /* Snapping off while typing. The browser scrolls the focused field into view and
      mandatory snapping then re-snaps to the nearest card, tugging the field
      back under the bar or off the bottom - which is the field being "a hair
@@ -2016,24 +2031,48 @@ let ro = null;
 
 function openReorderSheet(){
   $("swapTitle").textContent = `Reorder — ${dayObj().label}`;
+  const list = exList();
   $("swapOpts").innerHTML =
-    `<div id="roList">` + exList().map(ex => {
+    `<div class="rohint">Drag a handle, or use the arrows.</div>` +
+    `<div id="roList">` + list.map((ex, i) => {
       const off = isSkipped(W, D, ex.id);
       return `<div class="rorow${off ? " ro-skip" : ""}" data-ex="${ex.programId}">
-        <div class="rogrip" aria-hidden="true"><svg viewBox="0 0 10 16">
+        <div class="rogrip"><svg viewBox="0 0 10 16">
           <circle cx="2.5" cy="2" r="1.6"/><circle cx="7.5" cy="2" r="1.6"/>
           <circle cx="2.5" cy="8" r="1.6"/><circle cx="7.5" cy="8" r="1.6"/>
           <circle cx="2.5" cy="14" r="1.6"/><circle cx="7.5" cy="14" r="1.6"/>
         </svg></div>
         <div class="roline">
-          <div class="rotag">${off ? "Skipped" : ex.muscle}</div>
+          <div class="rotag">${off ? "Skipped" : ex.muscle} · ${ex.sets[W-1]}×${ex.reps}</div>
           <div class="roname">${ex.name}</div>
         </div>
-        <div class="ronum">${ex.sets[W-1]}×${ex.reps}</div>
+        <button class="roup" type="button" aria-label="Move ${ex.name} earlier"${i === 0 ? " disabled" : ""}>
+          <svg viewBox="0 0 16 16"><polyline points="3,10 8,5 13,10"/></svg>
+        </button>
+        <button class="rodown" type="button" aria-label="Move ${ex.name} later"${i === list.length-1 ? " disabled" : ""}>
+          <svg viewBox="0 0 16 16"><polyline points="3,10 8,5 13,10"/></svg>
+        </button>
       </div>`;
     }).join("") + `</div>` +
     `<button class="sheetDone" type="button">Done</button>`;
   $("swapSheet").hidden = false;
+}
+
+// The ends move as rows do, so the two arrows that cannot go anywhere have to
+// be redisabled after every move however it was made.
+function roEnds(){
+  const rows = [...$("roList").children];
+  rows.forEach((r, i) => {
+    r.querySelector(".roup").disabled = i === 0;
+    r.querySelector(".rodown").disabled = i === rows.length - 1;
+  });
+}
+
+function roNudge(row, up){
+  const sib = up ? row.previousElementSibling : row.nextElementSibling;
+  if(!sib) return;
+  if(up) sib.before(row); else sib.after(row);
+  roStep(); roEnds(); roCommit();
 }
 
 /* Neighbour-relative, at most one place per call. Scanning every row for an
@@ -2050,11 +2089,11 @@ function roPlace(y){
   const prev = rows[i-1], next = rows[i+1];
   if(prev){
     const r = prev.getBoundingClientRect();
-    if(y < r.top + r.height/2){ prev.before(ro.row); roStep(); return; }
+    if(y < r.top + r.height/2){ prev.before(ro.row); roStep(); roEnds(); return; }
   }
   if(next){
     const r = next.getBoundingClientRect();
-    if(y > r.top + r.height/2){ next.after(ro.row); roStep(); return; }
+    if(y > r.top + r.height/2){ next.after(ro.row); roStep(); roEnds(); return; }
   }
 }
 
@@ -2092,6 +2131,9 @@ $("swapOpts").addEventListener("pointerdown", e => {
   const grip = e.target.closest(".rogrip");
   if(!grip || !e.isPrimary || refuseIfClosed()) return;          // §13.6
   ro = {row: grip.closest(".rorow"), pid: e.pointerId};
+  // Without capture the finger leaves the 40px handle on the first move and
+  // the events go to whatever is under it instead.
+  try{ grip.setPointerCapture(e.pointerId); }catch(err){}
   ro.row.classList.add("ro-drag");
   if(navigator.vibrate) navigator.vibrate(12);
   document.addEventListener("pointermove", roMove);
@@ -2253,7 +2295,7 @@ document.addEventListener("click", e=>{
     save(); tickDash(); return;
   }
   // §13.6: everything below this line writes to the block.
-  if(refuseIfClosed() && e.target.closest(".fb,.chk,.notebtn,.grip")) return;
+  if(refuseIfClosed() && e.target.closest(".fb,.chk,.notebtn,.grip,.roup,.rodown")) return;
   const fbBtn = e.target.closest(".fb");
   if(fbBtn){
     const k = `${W}|${D}|${exList()[fbBtn.dataset.e].id}`;
@@ -2268,6 +2310,8 @@ document.addEventListener("click", e=>{
     return;
   }
   if(e.target.closest(".grip")){ openReorderSheet(); return; }
+  const arrow = e.target.closest(".roup,.rodown");
+  if(arrow){ roNudge(arrow.closest(".rorow"), arrow.classList.contains("roup")); return; }
   const nb = e.target.closest(".notebtn");
   if(nb){ openNoteSheet(+nb.dataset.note); return; }
   if(e.target.closest(".sheetDone")){ closeSwapSheet(); return; }
