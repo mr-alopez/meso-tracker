@@ -107,6 +107,17 @@
     --alarm:#ff6b6b;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  /* None of this is prose to be selected - it is a control surface, and a
+     touch-and-hold that starts a selection is a tap that did not do what it
+     was for. The old card drag reached for exactly this with a .no-select
+     class it put on <body> for the duration of a drag. When that drag was
+     replaced, the reorder sheet inherited none of the protection, and holding
+     a row selected the exercise name rather than picking the row up.
+
+     Fields are the exception: a note cannot be edited if it cannot be
+     selected. */
+  body{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  input,textarea{user-select:text;-webkit-user-select:text;-webkit-touch-callout:default}
   /* One card per gesture. scroll-snap-stop:always stops a hard fling at each
      card rather than letting it sail past several.
 
@@ -212,8 +223,7 @@
   .card.skipped{opacity:.55;border-top-color:var(--ink-3)}
   .card.skipped .say, .card.skipped .cuewrap{display:none}
   .card.skipped .todo{border-left-color:var(--line-2)}
-  .exhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
-    user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  .exhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
   /* The only control in the header: a 44px target you can find by feel. It
      opens the reorder sheet rather than starting a drag of its own. */
   .grip{flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center;
@@ -239,7 +249,11 @@
   .rorow.ro-drag{border-color:var(--signal);position:relative;z-index:1;
     box-shadow:0 8px 22px rgba(8,11,14,.45)}
   .rohint{font-family:var(--mono);font-size:13px;color:var(--ink-3);margin:-4px 0 10px}
-  .rogrip{flex:none;width:40px;height:58px;display:flex;align-items:center;justify-content:center;
+  /* Reads as its own zone rather than as dots floating at the edge of the row,
+     because it is the only part of the row where touch-action is none - a
+     touch a few pixels to the right of it belongs to the browser, not to us. */
+  .rogrip{flex:none;width:48px;height:58px;display:flex;align-items:center;justify-content:center;
+    background:var(--field);border-right:1px solid var(--line-2);border-radius:2px 0 0 2px;
     touch-action:none;cursor:grab}
   /* Two things the handle got wrong at first. It was painted in --line, the
      faintest token in the palette, so it read as a divider rather than a
