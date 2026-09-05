@@ -121,14 +121,20 @@
   /* One card per gesture. scroll-snap-stop:always stops a hard fling at each
      card rather than letting it sail past several.
 
-     PROXIMITY, not mandatory. The claim that used to sit here - that oversized
-     cards are safe because any position covering the snapport is valid - does
-     not survive measurement. At 375x667 with a 644px card and 589px of usable
-     height under the sticky dashboard, mandatory refused to rest anywhere but a
-     card top, and the FELT row and the note at the bottom of the card could not
-     be reached at all: scrollIntoView on them moved the container zero pixels.
-     Proximity snaps a flick to a card top exactly as before and lets a scroll
-     that is deliberately going somewhere else arrive.
+     MANDATORY, with a second snap point per card. Mandatory alone was wrong: a
+     card taller than the usable height had only one snap position, its own top,
+     so the FELT row and the note at its foot could not be reached at all -
+     scrollIntoView on them moved the container zero pixels at 375x667. But
+     proximity, which fixed that, is too weak to hold a hard fling: it let the
+     list rest at any of eleven positions inside a single card instead of two.
+
+     So the fix belongs on the card, not on the container. .notebtn is the last
+     element in a card, and aligning its END to the end of the snapport gives
+     every card a second resting place that shows its bottom. Measured at
+     375x667: mandatory alone rests at 2 positions and cannot reach FELT;
+     proximity rests at 11; this rests at 4, and reaches everything. The extra
+     positions carry no scroll-snap-stop, so a fling still stops one card at a
+     time - only a deliberate slow drag can come to rest on one.
      The header carries its own snap point, or the top of the page would not be
      a valid resting position and mandatory would drag you off the week and day
      selector onto the first card. scroll-margin-top clears the sticky
@@ -144,7 +150,7 @@
      container than on the root scroller in Chrome Android, which was letting
      flicks sail past cards the spec says they should stop at. */
   .wrap{max-width:560px;margin:0 auto;height:100dvh;overflow-y:auto;
-    overscroll-behavior-y:contain;scroll-snap-type:y proximity}
+    overscroll-behavior-y:contain;scroll-snap-type:y mandatory}
 
   /* ---- header: compact, scrolls away. The dashboard below it is what sticks. ---- */
   header{background:var(--paper);padding:8px 14px 0}
@@ -403,7 +409,11 @@
      band at the foot of a card meant writing blind: the keyboard covers most of
      what has been written, and the band grew a line at a time under the thumb.
      Tapping it opens the sheet, where there is room to see the whole thing. */
-  .notebtn{display:block;width:100%;text-align:left;appearance:none;background:transparent;
+  /* The card's second snap point - see the scroll-snap note at the top. The
+     margin is the card's own bottom padding, so the position lands on the edge
+     of the card rather than shaving it. */
+  .notebtn{scroll-snap-align:end;scroll-margin-bottom:4px;
+    display:block;width:100%;text-align:left;appearance:none;background:transparent;
     border:none;border-top:1px solid var(--line-2);margin-top:6px;padding:11px 2px;
     font-family:var(--sans);font-size:15px;line-height:1.45;color:var(--placeholder);
     cursor:pointer;white-space:pre-wrap;overflow-wrap:anywhere}
