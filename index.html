@@ -107,11 +107,17 @@
     --alarm:#ff6b6b;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  /* One card per gesture. "mandatory" means every scroll comes to rest on a
-     snap point, and scroll-snap-stop:always stops a hard fling at each card
-     rather than letting it sail past several. Oversized cards are safe: the
-     spec makes any position covering the snapport valid, so a card taller than
-     the screen can still be scrolled through.
+  /* One card per gesture. scroll-snap-stop:always stops a hard fling at each
+     card rather than letting it sail past several.
+
+     PROXIMITY, not mandatory. The claim that used to sit here - that oversized
+     cards are safe because any position covering the snapport is valid - does
+     not survive measurement. At 375x667 with a 644px card and 589px of usable
+     height under the sticky dashboard, mandatory refused to rest anywhere but a
+     card top, and the FELT row and the note at the bottom of the card could not
+     be reached at all: scrollIntoView on them moved the container zero pixels.
+     Proximity snaps a flick to a card top exactly as before and lets a scroll
+     that is deliberately going somewhere else arrive.
      The header carries its own snap point, or the top of the page would not be
      a valid resting position and mandatory would drag you off the week and day
      selector onto the first card. scroll-margin-top clears the sticky
@@ -127,7 +133,7 @@
      container than on the root scroller in Chrome Android, which was letting
      flicks sail past cards the spec says they should stop at. */
   .wrap{max-width:560px;margin:0 auto;height:100dvh;overflow-y:auto;
-    overscroll-behavior-y:contain;scroll-snap-type:y mandatory}
+    overscroll-behavior-y:contain;scroll-snap-type:y proximity}
 
   /* ---- header: compact, scrolls away. The dashboard below it is what sticks. ---- */
   header{background:var(--paper);padding:8px 14px 0}
@@ -206,31 +212,41 @@
   .card.skipped{opacity:.55;border-top-color:var(--ink-3)}
   .card.skipped .say, .card.skipped .cuewrap{display:none}
   .card.skipped .todo{border-left-color:var(--line-2)}
-  .exhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;cursor:grab;
+  .exhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
     user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-  /* Now the only control in the header, so it stops being a 24px glyph you
-     have to hunt for and becomes a 44px target you can find by feel. */
+  /* The only control in the header: a 44px target you can find by feel. It
+     opens the reorder sheet rather than starting a drag of its own. */
   .grip{flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center;
-    padding:0}
+    appearance:none;border:none;background:transparent;padding:0;cursor:pointer}
   .grip svg{width:13px;height:21px;fill:var(--line);display:block}
-  /* The slot the card came from, as a slim dashed gap rather than a faded
-     full-height card. At 600-750px tall a faded card is invisible: the gap has
-     to be short enough that the neighbours around it stay on screen. */
-  .card.drag-src{height:56px;min-height:0;padding:0;overflow:hidden;opacity:1;
-    background:transparent;border:2px dashed var(--signal)}
-  .card.drag-src > *{visibility:hidden}
-  /* What follows the finger is a compact chip, not a clone of a screen-sized
-     card - a full clone covers the very gap it is meant to reveal. */
-  .drag-ghost{position:fixed;z-index:60;margin:0;pointer-events:none;
-    background:var(--card);border:1px solid var(--line-2);border-top:2px solid var(--signal);
-    border-radius:2px;padding:9px 12px;box-shadow:0 10px 28px rgba(8,11,14,.45)}
-  .no-select, .no-select *{user-select:none;-webkit-user-select:none}
-  /* Snapping off while dragging. Reordering the DOM makes a mandatory-snap
-     container re-snap, which shifts the scroll, which changes which cards sit
-     under the finger - so the insert-after search ran to the last card and the
-     exercise shot to the bottom. */
-  .wrap.dragging{scroll-snap-type:none}
-  /* Same while typing. The browser scrolls the focused field into view and
+
+  /* ---- reorder sheet ----
+     Dragging the real cards put the target off screen. A card is 450-660px
+     against 667-812px of phone, so moving an exercise three places meant
+     hauling it through some 2000px of edge-scrolling list at something you
+     could not see - which is what made placing one hard. The old code says as
+     much in its own comments: the vacated slot had to be collapsed to 56px
+     "or the neighbours around it stay off screen".
+
+     Here the whole day is a list of 58px rows. Every destination is visible at
+     once, the longest drag is about 300px, and there is no hold to wait out:
+     inside a sheet that exists only to reorder, touching the handle means
+     dragging. */
+  #roList{margin-bottom:4px}
+  .rorow{display:flex;align-items:center;gap:10px;background:var(--card-2);
+    border:1px solid var(--line-2);border-radius:2px;margin-bottom:6px;padding-right:12px}
+  .rorow.ro-skip{opacity:.55}
+  .rorow.ro-drag{border-color:var(--signal);position:relative;z-index:1;
+    box-shadow:0 8px 22px rgba(8,11,14,.45)}
+  .rogrip{flex:none;width:44px;height:58px;display:flex;align-items:center;justify-content:center;
+    touch-action:none;cursor:grab}
+  .rogrip svg{width:13px;height:21px;fill:var(--line);display:block}
+  .roline{min-width:0;flex:1}
+  .rotag{font-family:var(--mono);font-size:13px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-3)}
+  .roname{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ronum{flex:none;font-family:var(--mono);font-size:13px;color:var(--ink-3)}
+  /* Snapping off while typing. The browser scrolls the focused field into view and
      mandatory snapping then re-snaps to the nearest card, tugging the field
      back under the bar or off the bottom - which is the field being "a hair
      cut off" once the keyboard is up. */
@@ -252,7 +268,7 @@
   /* ---- swap sheet ---- */
   .sheetBack{position:fixed;inset:0;background:rgba(8,11,14,.45);z-index:70}
   .sheet{position:fixed;left:0;right:0;bottom:0;z-index:71;max-width:560px;margin:0 auto;
-    background:var(--card);border-top:2px solid var(--ink);max-height:70vh;overflow-y:auto;
+    background:var(--card);border-top:2px solid var(--ink);max-height:85vh;overflow-y:auto;
     padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
   .sheetTitle{font-family:var(--mono);font-size:13px;letter-spacing:.12em;text-transform:uppercase;
     color:var(--ink-2);margin-bottom:10px}
@@ -354,16 +370,27 @@
      type - so it stays out of the way until the field is actually in use.
      visibility rather than display keeps its space reserved, or the textarea
      would resize under your thumb mid-sentence. */
-  .noterow{display:flex;align-items:flex-end;gap:8px;border-top:1px solid var(--line-2);margin-top:6px}
-  .noteDone{flex:none;visibility:hidden;appearance:none;border:1px solid var(--line-2);
-    background:transparent;color:var(--ink-2);font-family:var(--mono);font-size:13px;font-weight:600;
-    letter-spacing:.08em;text-transform:uppercase;padding:9px 12px;border-radius:2px;cursor:pointer;
-    margin-bottom:6px}
-  .noterow:focus-within .noteDone{visibility:visible}
-  .note{width:100%;border:none;background:transparent;padding:9px 2px;
-    font-family:var(--sans);font-size:15px;color:var(--ink-2);resize:none}
-  .note:focus{outline:none;color:var(--ink)}
-  .note::placeholder{color:var(--placeholder)}
+  /* On the card the note is a DISPLAY, not a field. Typing into a one-line
+     band at the foot of a card meant writing blind: the keyboard covers most of
+     what has been written, and the band grew a line at a time under the thumb.
+     Tapping it opens the sheet, where there is room to see the whole thing. */
+  .notebtn{display:block;width:100%;text-align:left;appearance:none;background:transparent;
+    border:none;border-top:1px solid var(--line-2);margin-top:6px;padding:11px 2px;
+    font-family:var(--sans);font-size:15px;line-height:1.45;color:var(--placeholder);
+    cursor:pointer;white-space:pre-wrap;overflow-wrap:anywhere}
+  .notebtn.has{color:var(--ink-2)}
+  .noteEdit{width:100%;min-height:180px;border:1px solid var(--line-2);border-radius:2px;
+    background:var(--field);color:var(--ink);font-family:var(--sans);font-size:17px;
+    line-height:1.45;padding:11px;resize:none}
+  .noteEdit:focus{outline:1px solid var(--signal);outline-offset:-1px}
+  /* Sticky, because both sheets that use it can outgrow the sheet: six rows of
+     reorder already scroll at 667px, and the note editor loses most of its
+     height to the keyboard. Done should never be the thing you have to scroll
+     for. */
+  .sheetDone{position:sticky;bottom:0;display:block;width:100%;appearance:none;
+    border:1px solid var(--line-2);background:var(--card-2);color:var(--ink);border-radius:2px;
+    margin-top:10px;padding:13px;font-family:var(--mono);font-size:15px;font-weight:700;
+    letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
 
   /* ---- progression suggestion + feedback ---- */
   .fbrow{display:flex;align-items:center;gap:5px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line-2)}
@@ -1486,11 +1513,11 @@ function renderDay(){
           </div>
           <div class="exname">${ex.name}</div>
         </div>
-        <div class="grip" aria-hidden="true"><svg viewBox="0 0 10 16">
+        <button class="grip" type="button" aria-label="Reorder the exercises on this day"><svg viewBox="0 0 10 16">
           <circle cx="2.5" cy="2" r="1.6"/><circle cx="7.5" cy="2" r="1.6"/>
           <circle cx="2.5" cy="8" r="1.6"/><circle cx="7.5" cy="8" r="1.6"/>
           <circle cx="2.5" cy="14" r="1.6"/><circle cx="7.5" cy="14" r="1.6"/>
-        </svg></div>
+        </svg></button>
       </div>
       <div class="todo ${/^(DELOAD|PAIN)/.test(sug.outcome)?"warn":""}">
         <div class="todoline">
@@ -1507,10 +1534,8 @@ function renderDay(){
         <span class="fbsep"></span>
         <button class="fb fbpain" data-fb="pain" data-e="${ei}" aria-pressed="${!!fb.pain}">pain</button>
       </div>
-      <div class="noterow">
-        <textarea class="note" rows="1" data-note="${ei}" placeholder="Note…">${noteVal}</textarea>
-        <button class="noteDone" type="button" aria-label="Finish note and close the keyboard">Done</button>
-      </div>
+      <button class="notebtn${noteVal?" has":""}" data-note="${ei}"
+        aria-label="${noteVal?"Edit note":"Add a note"} for ${ex.name}">${noteVal?esc(noteVal):"Note…"}</button>
     </div>`;
   }).join("");
   paintActive();
@@ -1570,6 +1595,10 @@ const todayKey = () => {
    Console-callable and deliberately not wired to a button yet. Per the design
    note's own implementation order, the format IS the feature: it has to read
    well pasted by hand before any plumbing is worth writing. */
+/* A note is the one string on a card the user types himself, and it is now
+   rendered as markup rather than parked inside a textarea. */
+const esc = s => String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
 function sessionReport(question){
   const id = activeMeso();
   const n = id.match(/\d+/);
@@ -1583,7 +1612,19 @@ function sessionReport(question){
     "tracker's progression rule suggests for next week; I can override it.", ""];
 
   exList().forEach(ex => {
-    if(isSkipped(W, D, ex.id)){ out.push(`${ex.name} — skipped`, ""); return; }
+    // Trimmed: notes are typed on a phone and carry a trailing space more often
+    // than not, which survived into the report.
+    const note = (LOG.notes[`${W}|${D}|${ex.id}`] || "").trim();
+    /* Read on every branch, not just the logged one. A skip with no reason
+       attached reads as a training decision - a chat given "Cable Row —
+       skipped" inferred fatigue from it when the note on the card said he ran
+       out of time. The note is the only place that distinction lives. */
+    if(isSkipped(W, D, ex.id)){
+      out.push(`${ex.name} — skipped`);
+      if(note) out.push(`  note: ${note}`);
+      out.push("");
+      return;
+    }
     const sets = [];
     for(let si = 0; si < ex.sets[W-1]; si++){
       const c = LOG.sets[cell(W, D, ex.id, si)];
@@ -1593,7 +1634,12 @@ function sessionReport(question){
     // Not in the note, added on its own reasoning: an exercise with nothing
     // logged is the same kind of absence as a skip, and silence would read to a
     // fresh eye as "not in the program". Flagged for a ruling.
-    if(!sets.length){ out.push(`${ex.name} — not logged`, ""); return; }
+    if(!sets.length){
+      out.push(`${ex.name} — not logged`);
+      if(note) out.push(`  note: ${note}`);
+      out.push("");
+      return;
+    }
 
     out.push(`${ex.name} · ${ex.reps}`);
     const fb = LOG.feedback[`${W}|${D}|${ex.id}`] || {};
@@ -1603,9 +1649,6 @@ function sessionReport(question){
     const pain = fb.pain ? " · PAIN" : "";
     const unit = ex.unit === "per DB" ? " per DB" : "";
     out.push(`  ${sets.join(" ")}${unit}${felt}${pain}`);
-    // Trimmed: notes are typed on a phone and carry a trailing space more often
-    // than not, which survived into the report.
-    const note = (LOG.notes[`${W}|${D}|${ex.id}`] || "").trim();
     if(note) out.push(`  note: ${note}`);
     out.push(`  NEXT ${suggestFor(ex).text}`, "");
   });
@@ -1728,6 +1771,21 @@ function reportSheet(){
       <div class="oname">${o.name}</div><div class="ometa">${o.meta}</div>
     </button>`).join("");
   $("swapSheet").hidden = false;
+}
+
+function openNoteSheet(ei){
+  const ex = exList()[ei];
+  const val = LOG.notes[`${W}|${D}|${ex.id}`] || "";
+  $("swapTitle").textContent = `Note — ${ex.name}`;
+  $("swapOpts").innerHTML =
+    `<textarea class="noteEdit" data-note="${ei}" placeholder="What happened on this one?"></textarea>` +
+    `<button class="sheetDone" type="button">Done</button>`;
+  // Set as a value, never as markup: this is the one string the user types.
+  const ta = $("swapOpts").querySelector(".noteEdit");
+  ta.value = val;
+  $("swapSheet").hidden = false;
+  ta.focus();
+  ta.setSelectionRange(val.length, val.length);   // caret at the end, not the start
 }
 
 function endExerciseSheet(kind){
@@ -1948,125 +2006,98 @@ $("importFile").addEventListener("change", async e=>{
   if(f) importData(await f.text());
 });
 
-/* ---- hold-and-drag to reorder exercises ----
-   Hold the exercise header ~1/3s, then drag. Before the hold completes the
-   gesture stays a normal scroll; after it completes, touchmove is prevented
-   (non-passive) so the browser never hijacks the drag as a scroll. A fixed-
-   position clone follows the finger while the real card re-slots live. */
-const HOLD_MS = 350, DRAG_SLOP = 12, EDGE = 70, EDGE_SPEED = 8;
+/* ---- reorder ----
+   Opened from the card's grip, and it is the only way to reorder now. The old
+   gesture held the card header for a third of a second and then dragged the
+   real card; see the sheet's CSS for why that surface was the problem rather
+   than the gesture. */
 const scroller = () => document.querySelector(".wrap");
-let drag = null;
+let ro = null;
 
-function commitOrder(){
-  const now = [...$("days").querySelectorAll(".card")].map(c=>c.dataset.ex);
-  if(now.join("|") !== exList().map(x=>x.id).join("|")){
+function openReorderSheet(){
+  $("swapTitle").textContent = `Reorder — ${dayObj().label}`;
+  $("swapOpts").innerHTML =
+    `<div id="roList">` + exList().map(ex => {
+      const off = isSkipped(W, D, ex.id);
+      return `<div class="rorow${off ? " ro-skip" : ""}" data-ex="${ex.programId}">
+        <div class="rogrip" aria-hidden="true"><svg viewBox="0 0 10 16">
+          <circle cx="2.5" cy="2" r="1.6"/><circle cx="7.5" cy="2" r="1.6"/>
+          <circle cx="2.5" cy="8" r="1.6"/><circle cx="7.5" cy="8" r="1.6"/>
+          <circle cx="2.5" cy="14" r="1.6"/><circle cx="7.5" cy="14" r="1.6"/>
+        </svg></div>
+        <div class="roline">
+          <div class="rotag">${off ? "Skipped" : ex.muscle}</div>
+          <div class="roname">${ex.name}</div>
+        </div>
+        <div class="ronum">${ex.sets[W-1]}×${ex.reps}</div>
+      </div>`;
+    }).join("") + `</div>` +
+    `<button class="sheetDone" type="button">Done</button>`;
+  $("swapSheet").hidden = false;
+}
+
+/* Neighbour-relative, at most one place per call. Scanning every row for an
+   absolute answer meant any layout shift could re-slot several positions at
+   once, which is what made the old drag lurch and buzz while it settled.
+   Steps cannot cascade, and cannot oscillate either: after a swap the row sits
+   in the space the neighbour vacated, which is past that neighbour's new
+   midpoint. Kept from the old implementation - the logic was sound, the
+   surface it ran on was not. */
+function roPlace(y){
+  const rows = [...$("roList").children];
+  const i = rows.indexOf(ro.row);
+  if(i < 0) return;
+  const prev = rows[i-1], next = rows[i+1];
+  if(prev){
+    const r = prev.getBoundingClientRect();
+    if(y < r.top + r.height/2){ prev.before(ro.row); roStep(); return; }
+  }
+  if(next){
+    const r = next.getBoundingClientRect();
+    if(y > r.top + r.height/2){ next.after(ro.row); roStep(); return; }
+  }
+}
+
+// One short blip per position crossed, paced by the finger.
+function roStep(){ if(navigator.vibrate) navigator.vibrate(10); }
+
+function roCommit(){
+  const now = [...$("roList").children].map(r => r.dataset.ex);
+  // Against programId, which is what LOG.order stores. The old commit compared
+  // these ids to exList().map(x => x.id) - a different field on any swapped
+  // exercise - so it wrote the order back on every drop, moved or not.
+  if(now.join("|") !== exList().map(x => x.programId).join("|")){
     LOG.order[D] = now;
     save();
   }
 }
 
-/* Move at most one place per call, and only past an immediate neighbour's
-   midpoint. Scanning every card for an absolute answer meant any layout shift
-   - a collapsing slot, a clamped scroll - could re-slot the card several
-   positions at once, which is what made an upward drag lurch downward first
-   and buzz repeatedly while it settled. Neighbour-relative steps cannot
-   cascade, and they cannot oscillate either: after a swap the card sits in the
-   space the neighbour vacated, which is past that neighbour's new midpoint. */
-function placeSrc(y){
-  const cards = [...$("days").children].filter(c => c.classList.contains("card"));
-  const i = cards.indexOf(drag.card);
-  if(i < 0) return;
-  const prev = cards[i-1], next = cards[i+1];
-  if(prev){
-    const r = prev.getBoundingClientRect();
-    if(y < r.top + r.height/2){ prev.before(drag.card); dragStep(); return; }
-  }
-  if(next){
-    const r = next.getBoundingClientRect();
-    if(y > r.top + r.height/2){ next.after(drag.card); dragStep(); return; }
-  }
+function roMove(e){ if(ro && e.pointerId === ro.pid) roPlace(e.clientY); }
+
+function roEnd(e){
+  if(!ro || (e && e.pointerId !== ro.pid)) return;
+  ro.row.classList.remove("ro-drag");
+  document.removeEventListener("pointermove", roMove);
+  document.removeEventListener("pointerup", roEnd);
+  document.removeEventListener("pointercancel", roEnd);
+  ro = null;
+  roCommit();
 }
 
-// One short blip per position crossed. Paced by the finger now, not by the
-// animation frame, so a slow drag ticks once per card rather than rattling.
-function dragStep(){ if(navigator.vibrate) navigator.vibrate(10); }
-
-function beginDrag(){
-  if(!drag) return;
-  const r = drag.card.getBoundingClientRect();
-  const g = document.createElement("div");
-  g.className = "drag-ghost";
-  const line = (cls, txt) => { const d = document.createElement("div"); d.className = cls; d.textContent = txt; return d; };
-  g.appendChild(line("tag", drag.card.querySelector(".tag").textContent));
-  g.appendChild(line("exname", drag.card.querySelector(".exname").textContent));
-  g.style.width = r.width+"px"; g.style.left = r.left+"px"; g.style.top = r.top+"px";
-  document.body.appendChild(g);
-  // Hang the chip from the middle so it sits under the finger rather than
-  // wherever on a tall card the grab happened to land.
-  drag.grabDY = g.getBoundingClientRect().height/2;
-  g.style.top = (drag.startY - drag.grabDY)+"px";
-  drag.ghost = g;
-  // Freeze the list's height for the drag. Collapsing a 600px card to a 56px
-  // slot removes enough content that a scrolled container clamps its scroll
-  // position, and everything lurches under the finger.
-  const days = $("days");
-  days.style.minHeight = days.getBoundingClientRect().height + "px";
-  drag.card.classList.add("drag-src");
-  scroller().classList.add("dragging");
-  document.body.classList.add("no-select");
-  drag.started = true;
-  drag.lastY = drag.startY;
-  if(navigator.vibrate) navigator.vibrate(15);
-  drag.raf = requestAnimationFrame(dragTick);
-}
-
-function dragTick(){
-  if(!drag || !drag.started) return;
-  const y = drag.lastY;
-  // Re-slot from the frame loop only while the edge is actually scrolling the
-  // list past a stationary finger. Otherwise the finger drives it, which is
-  // what keeps one buzz meaning one card.
-  let scrolling = false;
-  if(y < EDGE){ scroller().scrollBy(0, -EDGE_SPEED); scrolling = true; }
-  else if(y > innerHeight - EDGE){ scroller().scrollBy(0, EDGE_SPEED); scrolling = true; }
-  if(scrolling) placeSrc(y);
-  drag.raf = requestAnimationFrame(dragTick);
-}
-
-function dragMove(e){
-  if(!drag || e.pointerId !== drag.pid) return;
-  if(!drag.started){
-    if(Math.hypot(e.clientX-drag.startX, e.clientY-drag.startY) > DRAG_SLOP) endDrag(false);
-    return;
-  }
-  drag.lastY = e.clientY;
-  drag.ghost.style.top = (e.clientY - drag.grabDY)+"px";
-  placeSrc(e.clientY);
-}
-
-function dragUp(e){ if(drag && e.pointerId === drag.pid) endDrag(true); }
-function dragCancel(e){ if(drag && e.pointerId === drag.pid) endDrag(false); }
-function preventScroll(e){ if(drag && drag.started) e.preventDefault(); }
-
-function endDrag(commit){
-  clearTimeout(drag.timer);
-  cancelAnimationFrame(drag.raf);
-  if(drag.ghost) drag.ghost.remove();
-  $("days").style.minHeight = "";
-  drag.card.classList.remove("drag-src");
-  scroller().classList.remove("dragging");
-  document.body.classList.remove("no-select");
-  document.removeEventListener("pointermove", dragMove);
-  document.removeEventListener("pointerup", dragUp);
-  document.removeEventListener("pointercancel", dragCancel);
-  document.removeEventListener("touchmove", preventScroll);
-  const started = drag.started;
-  drag = null;
-  if(started){
-    if(commit) commitOrder();
-    renderDay();   // commit or not, redraw from the stored order
-  }
-}
+/* No hold to wait out. Inside a sheet whose only purpose is reordering,
+   touching the handle means dragging - and touch-action:none on the handle
+   keeps the browser from claiming the gesture as a scroll, which is what the
+   old code needed a non-passive touchmove listener to undo. */
+$("swapOpts").addEventListener("pointerdown", e => {
+  const grip = e.target.closest(".rogrip");
+  if(!grip || !e.isPrimary || refuseIfClosed()) return;          // §13.6
+  ro = {row: grip.closest(".rorow"), pid: e.pointerId};
+  ro.row.classList.add("ro-drag");
+  if(navigator.vibrate) navigator.vibrate(12);
+  document.addEventListener("pointermove", roMove);
+  document.addEventListener("pointerup", roEnd);
+  document.addEventListener("pointercancel", roEnd);
+});
 
 /* ---- exercise swap sheet ----
    Tap the card's swap button to list same-slot library alternatives. Choosing
@@ -2130,7 +2161,13 @@ function openDaySheet(dayKey){
   $("swapSheet").hidden = false;
 }
 
-function closeSwapSheet(){ $("swapSheet").hidden = true; }
+function closeSwapSheet(){
+  // Redraw only for the note sheet, whose card label is now stale. The swap
+  // paths render themselves.
+  const redraw = !!$("swapOpts").querySelector(".noteEdit, #roList");
+  $("swapSheet").hidden = true;
+  if(redraw) renderDay();
+}
 
 document.addEventListener("click", e=>{
   const sb = e.target.closest(".swapBtn");
@@ -2195,22 +2232,6 @@ document.addEventListener("click", e=>{
   if(e.target.closest(".sheetBack")){ closeSwapSheet(); return; }
 });
 
-$("days").addEventListener("pointerdown", e=>{
-  if(!e.isPrimary || e.target.closest(".swapBtn,.vidBtn") || !e.target.closest(".exhead")) return;
-  drag = {card: e.target.closest(".card"), pid: e.pointerId,
-          startX: e.clientX, startY: e.clientY, started: false,
-          timer: setTimeout(beginDrag, HOLD_MS)};
-  document.addEventListener("pointermove", dragMove);
-  document.addEventListener("pointerup", dragUp);
-  document.addEventListener("pointercancel", dragCancel);
-  document.addEventListener("touchmove", preventScroll, {passive:false});
-});
-
-// Android fires a context menu on long-press; keep it off the drag handle.
-$("days").addEventListener("contextmenu", e=>{
-  if(e.target.closest(".exhead")) e.preventDefault();
-});
-
 document.addEventListener("click", e=>{
   const wb = e.target.closest("#weekSeg button");
   if(wb){ W = +wb.dataset.w; activeOverride = null; rememberPlace(); render(); scroller().scrollTo(0,0); return; }
@@ -2232,7 +2253,7 @@ document.addEventListener("click", e=>{
     save(); tickDash(); return;
   }
   // §13.6: everything below this line writes to the block.
-  if(refuseIfClosed() && e.target.closest(".fb,.chk,.noteDone")) return;
+  if(refuseIfClosed() && e.target.closest(".fb,.chk,.notebtn,.grip")) return;
   const fbBtn = e.target.closest(".fb");
   if(fbBtn){
     const k = `${W}|${D}|${exList()[fbBtn.dataset.e].id}`;
@@ -2246,8 +2267,10 @@ document.addEventListener("click", e=>{
     save(); renderDay();
     return;
   }
-  const nd = e.target.closest(".noteDone");
-  if(nd){ const ta = nd.parentNode.querySelector(".note"); if(ta) ta.blur(); return; }
+  if(e.target.closest(".grip")){ openReorderSheet(); return; }
+  const nb = e.target.closest(".notebtn");
+  if(nb){ openNoteSheet(+nb.dataset.note); return; }
+  if(e.target.closest(".sheetDone")){ closeSwapSheet(); return; }
   const chk = e.target.closest(".chk");
   if(chk){
     const ex = exList()[chk.dataset.e];
@@ -2315,7 +2338,6 @@ document.addEventListener("input", e=>{
   if(inp.dataset.note!==undefined){
     const k = `${W}|${D}|${exList()[inp.dataset.note].id}`;
     if(inp.value) LOG.notes[k] = inp.value; else delete LOG.notes[k];
-    inp.style.height="auto"; inp.style.height=inp.scrollHeight+"px";
     save();
   }
 });
