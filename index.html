@@ -129,12 +129,20 @@
      list rest at any of eleven positions inside a single card instead of two.
 
      So the fix belongs on the card, not on the container. .notebtn is the last
-     element in a card, and aligning its END to the end of the snapport gives
-     every card a second resting place that shows its bottom. Measured at
-     375x667: mandatory alone rests at 2 positions and cannot reach FELT;
-     proximity rests at 11; this rests at 4, and reaches everything. The extra
-     positions carry no scroll-snap-stop, so a fling still stops one card at a
-     time - only a deliberate slow drag can come to rest on one.
+     element in a card, and aligning its END to the end of the snapport gives a
+     card a second resting place that shows its bottom.
+
+     ONLY ON A CARD THAT NEEDS IT. Given to every card it made a flick stop
+     short of the next one, because on a card that already fits, "foot at the
+     bottom of the screen" is a DIFFERENT position from "top at the top of the
+     screen" - lower, and so the nearer one on the way down. A 453px card in
+     738px of room still gained a stop at 293. On a card taller than the room
+     there is something down there you cannot otherwise reach; on one that
+     fits, the stop buys nothing and costs the flick. markTallCards decides
+     which is which after every render.
+
+     The extra position carries no scroll-snap-stop, so even on a tall card a
+     fling still stops one card at a time.
      The header carries its own snap point, or the top of the page would not be
      a valid resting position and mandatory would drag you off the week and day
      selector onto the first card. scroll-margin-top clears the sticky
@@ -412,8 +420,8 @@
   /* The card's second snap point - see the scroll-snap note at the top. The
      margin is the card's own bottom padding, so the position lands on the edge
      of the card rather than shaving it. */
-  .notebtn{scroll-snap-align:end;scroll-margin-bottom:4px;
-    display:block;width:100%;text-align:left;appearance:none;background:transparent;
+  .card.tall .notebtn{scroll-snap-align:end;scroll-margin-bottom:4px}
+  .notebtn{display:block;width:100%;text-align:left;appearance:none;background:transparent;
     border:none;border-top:1px solid var(--line-2);margin-top:6px;padding:11px 2px;
     font-family:var(--sans);font-size:15px;line-height:1.45;color:var(--placeholder);
     cursor:pointer;white-space:pre-wrap;overflow-wrap:anywhere}
@@ -1578,6 +1586,19 @@ function renderDay(){
     </div>`;
   }).join("");
   paintActive();
+  markTallCards();
+}
+
+/* A card is "tall" when it cannot be seen in one view under the sticky
+   dashboard, which is the only case where its foot needs a snap point of its
+   own. Measured rather than assumed: card heights move with the week's set
+   count, the rep range, whether a cue is open and how long the exercise name
+   is, and the room moves with the phone. */
+function markTallCards(){
+  const dash = document.querySelector(".dash");
+  const room = scroller().clientHeight - (dash ? dash.getBoundingClientRect().height : 0);
+  $("days").querySelectorAll(".card").forEach(c =>
+    c.classList.toggle("tall", c.getBoundingClientRect().height > room));
 }
 
 function renderVolume(){
@@ -2540,6 +2561,9 @@ $("sessBtn").addEventListener("pointermove", e => {
 });
 ["pointerup","pointerleave","pointercancel"].forEach(ev =>
   $("sessBtn").addEventListener(ev, cancelSessHold));
+
+// Rotating the phone, or the URL bar sliding away, changes the room a card has.
+addEventListener("resize", markTallCards);
 </script>
 </body>
 </html>
