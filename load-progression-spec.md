@@ -162,8 +162,22 @@ invent smaller increments.
 | Bodyweight | **n/a** | Progresses by reps only (§6) |
 
 **Per-exercise override:** an exercise may carry an optional `step` field which wins
-over the table. Machine flye is known to have fine add-ons (72.5 lb appears in the
-logs), so it should carry `step: 2.5`.
+over the table, for equipment whose smallest step differs from its category default.
+Three exercises use it: the dip station and the pull-up bar at `step: 5`, both loaded by
+plate on a belt rather than by pin, and the assisted machine at `step: 10`.
+
+**Machine flye no longer carries one.** v1.0 gave it `step: 2.5` on the grounds that
+"72.5 lb appears in the logs". That claim arrived with the spec on 22 August, before the
+tracker had recorded a single set, so the logs it refers to are not ones this repo can
+check. He has since confirmed the machine takes 10 lb plates and nothing finer, so the
+Machine default of **+10** applies and the override is gone.
+
+Measured when it was removed, because it bears on §4: at 70 lb and up, a 10 lb pin clears
+the gate and the flye progresses normally — `70 ✓ → try 80`. Below 70 it does not. At 60
+the gate asks for 16 reps against a range topping at 15, at 50 for 17, at 40 for 19, and at
+30 the jump is refused outright. So a deload that puts this exercise under 70 strands it
+under v1.9. That is the same shape as the survey that produced v2.0, and v2.0's landing
+check clears it.
 
 **Non-uniform racks.** A single `step` per exercise assumes evenly spaced loads. The
 dumbbell rack is not evenly spaced: it runs 10, 12, 15, 20, 25 and upward in fives, so the
