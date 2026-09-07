@@ -1,5 +1,9 @@
 # Load Progression Spec — meso-tracker
 
+Version 2.1 · 5 Sep 2026 — records the Machine Flye increment correction, rules on vector 7,
+and adds a documentation rule for measured claims, which is the general form of the defect the
+correction exposed. No engine change: library data and documentation only.
+
 Version 2.0 · 31 Aug 2026 — §4 is reshaped from a **rep-buffer requirement** into a
 **landing check**. Major version because the gate's premise changes, not its constants. Also
 records two decisions so they stop being re-derived: fractional plates are out of the solution
@@ -161,23 +165,53 @@ invent smaller increments.
 | Machine | **+10 lb** | One pin |
 | Bodyweight | **n/a** | Progresses by reps only (§6) |
 
-**Per-exercise override:** an exercise may carry an optional `step` field which wins
-over the table, for equipment whose smallest step differs from its category default.
-Three exercises use it: the dip station and the pull-up bar at `step: 5`, both loaded by
-plate on a belt rather than by pin, and the assisted machine at `step: 10`.
+**Category defaults are assumptions about equipment, not facts about it.** Machine and
+cable stacks are taken to move in 10 lb increments and barbells in 5 lb because that
+is typical, not because these particular machines were measured. A per-exercise `step`
+override records a **measured** property of a specific machine and must state how it
+was established.
 
-**Machine flye no longer carries one.** v1.0 gave it `step: 2.5` on the grounds that
-"72.5 lb appears in the logs". That claim arrived with the spec on 22 August, before the
-tracker had recorded a single set, so the logs it refers to are not ones this repo can
-check. He has since confirmed the machine takes 10 lb plates and nothing finer, so the
-Machine default of **+10** applies and the override is gone.
+No exercise currently carries a step finer than its category default. The Machine Flye
+previously carried `step: 2.5`, justified by a 72.5 lb figure said to appear in logs
+that predate the tracker and cannot be checked. The machine takes 10 lb plates and
+nothing finer. The override is removed and the Machine default applies.
 
-Measured when it was removed, because it bears on §4: at 70 lb and up, a 10 lb pin clears
-the gate and the flye progresses normally — `70 ✓ → try 80`. Below 70 it does not. At 60
-the gate asks for 16 reps against a range topping at 15, at 50 for 17, at 40 for 19, and at
-30 the jump is refused outright. So a deload that puts this exercise under 70 strands it
-under v1.9. That is the same shape as the survey that produced v2.0, and v2.0's landing
-check clears it.
+The override mechanism remains in use elsewhere and is not deprecated.
+
+### Measured consequence at v1.9
+
+Machine Flye, 10–15 range, at the top of range on every set:
+
+| Load | Jump | v1.9 gate |
+|---|---|---|
+| 70 and above | ≤ 14.3% | Passes — `70 ✓ → try 80` |
+| 60 | 16.7% | Demands 16 reps against a top of 15 |
+| 50 | 20% | Demands 17 |
+| 40 | 25% | Demands 19 |
+
+The flye starts at 70 and is unaffected while it climbs. Below 70 it is stranded,
+demanding reps past the top of its own range — the condition §4 v2.0 exists to remove.
+
+### Equipment audit — pending, before Meso 02
+
+One datum in this table was wrong on unverifiable grounds. The rest rests on the same
+footing: category defaults, never measured.
+
+| Equipment | Assumed | Exercises |
+|---|---|---|
+| Machines | +10 | Machine Flye, Leg Extension, Seated Leg Curl |
+| Cables | +10 | Triceps Pushdown, Rope Facepull, Lat Pulldown, Rear Delt Flye |
+| Barbell | +5 | Confirm 2.5 lb plate pairs exist at both gyms |
+| Assisted pull-up | +10 | Confirm stack increment |
+
+The dumbbell rack is already modelled from observation (v1.7) and needs no re-check.
+
+Record each as a dated line stating that it was physically verified. Where a measurement
+contradicts the category default, add a `step` override carrying the same note.
+
+**This should precede Meso 02's PROGRAM.** A cable stack that turns out to be 5 lb rather
+than 10 changes the gate arithmetic for that exercise, which changes whether it can
+progress, which is an input to choosing exercises and set counts for the next block.
 
 **Non-uniform racks.** A single `step` per exercise assumes evenly spaced loads. The
 dumbbell rack is not evenly spaced: it runs 10, 12, 15, 20, 25 and upward in fives, so the
@@ -269,10 +303,26 @@ that, where a fixed rep offset would not.
 `ceil(jumpPct / 0.03)` tracks a standard rep-max relationship closely. The premise was. Requiring
 set 1 to clear the range *bottom* after the jump means holding a large rep buffer *before* it,
 and on a coarse increment that buffer exceeds the top of the range. Measured across the PROGRAM
-at v1.9, six of fourteen loaded exercises demanded between one and four reps past the **top**
-before the next available load unlocked. The top of a rep range is the signal to add load — a
+at v1.9, loaded exercises demanded reps past the **top** before the next available load
+unlocked — *count pending re-measurement, see §12; the original figure came from a survey whose
+method was not recorded and must not be restated until the survey is re-run.* The argument does
+not depend on the count: it rests on the gate demanding reps past the top of a range at all,
+which one worked example establishes. The top of a rep range is the signal to add load — a
 rule that requires exceeding it contradicts the definition of the quantity it reads. Double
 progression has always run the other way: reach the top, add load, watch reps fall, climb back.
+
+**`REDUCE` is a one-way door under v1.9.** A coarse increment makes `REDUCE` non-reversible.
+Machine Flye reduced from 70 to 60 lands on a load the v1.9 gate will not let it leave:
+escaping 60 requires 16 reps against a range top of 15. The exercise is not stranded by a
+deload — §7 produces no suggestions in week 4 and §13.2 seeds from loading weeks — but by an
+ordinary failed week.
+
+This is structural rather than an edge case: on any exercise where the increment exceeds
+roughly 15% of the reduced load, v1.9 can move a load down and then refuse to move it back. It
+is the clearest argument for shipping v2.0 without further delay.
+
+**Ship date unchanged: alongside Meso 02.** The exposure window is two sessions and requires a
+failed week to open. Do not accelerate; do not let it slip further.
 
 **[revisit]** Half is a threshold, not a derivation. It was chosen to clear the PROGRAM while
 still blocking a three-rep landing in a 12–20 slot. **Verified after merging: it clears 13 of
@@ -604,6 +654,27 @@ text, which silently invalidated vector 9. A transcribed table nobody re-checks 
 worse than no table: it carries the authority of the specification while drifting
 from it.
 
+**A measured claim in this document records how it was measured.** Any figure derived
+from surveying the PROGRAM, the library, or logged data must appear as a dated table
+with its inputs — date, PROGRAM state, spec version, and the per-item results — not as
+a count inside a sentence.
+
+Two claims have now failed this test. `step: 2.5` rested on logs that predate the
+tracker and cannot be checked. §4's "six of fourteen loaded exercises" was transcribed
+from a survey whose method was not recorded, and a re-run produced seven of thirteen —
+a different numerator *and* a different denominator, meaning the exercise set changed
+between runs and neither figure can be reconciled after the fact.
+
+A count in prose looks like a fact and is unfalsifiable a week later.
+
+### §4 rationale — pending re-measurement
+
+§4's count is a placeholder until the survey is re-run and recorded per the rule above.
+**Do not restate either figure.** When re-running, record explicitly: which exercises count
+as "loaded" (the original appears to have counted the 14 of 18 carrying a PROGRAM start
+load, but this is reconstruction), what load each was evaluated at, and the spec version of
+the gate.
+
 Every vector must be deterministic. Where an input omits a value that any rule in
 the evaluation order reads — including `prescribed` — the vector is defective and
 is fixed, not interpreted.
@@ -631,7 +702,7 @@ Every vector must pass. Unless stated, `prescribed` is 3 and effort is `right`.
 | 4 | DB 10, 12–20, 20/18/16, easy | `P_GATED` | `HOLD_GATE` | `repeat 10 — need 23+ before 15` |
 | 5 | BB 45, 10–15, 15/14/12, brutal | `P_PASS` | `HOLD_RIR` | `repeat 45 — same reps, more in reserve` |
 | 6 | Cable 60, 10–15, 8/7/6 | `P_FAIL` | `REDUCE` | `drop to 50 — 10+ clean` |
-| 7 | Machine 70 step 2.5, 10–15, 15/13/12 | `P_PASS` | `ADD` | `70 ✓ → try 72.5` |
+| 7 | Load 70, 10–15, step 2.5, 15/13/12 | `P_PASS` | `ADD` | `70 ✓ → try 72.5` |
 | 8 | BB 65×12 / 95×7 / 85×10 | — | `MIXED` | `pick one weight and hold it` |
 | 9 | BB 65, range 8–12, sets 12/11/10, presc 3, pain = true | — | `PAIN` | `pain flagged — go lighter or swap the movement` |
 | 10 | Week 4, week-3 load 90, step 5 | — | `DELOAD` | `60 — 4–5 RIR, stop early` |
@@ -686,6 +757,14 @@ the `BW_PROGRESS` outcome name. Vectors 1–8, 10 and 12 are unchanged: all are 
 §7's cascade, never reaching a later rung or §7.1. **v1.4 split every row's `Expected` cell**
 across the class and outcome columns — vectors 1, 3, 4 and 5 had stated a class where the
 other rows stated an outcome — and changed no expectation.
+
+**v2.1 changed no expectation.** Vector 7's input cell is relabelled from "Machine 70 step
+2.5" to "Load 70 … step 2.5": after the Machine Flye correction no library entry carries a step
+finer than its category default, so the row no longer describes any exercise. **It is retained**
+— it is now the only coverage of that path, and a vector may test a configuration the library
+does not contain when it is the sole guard on a mechanism. No spec text was adjusted to suit it,
+which is the principle that matters. The relabel matches the synthetic style rows 51 and 52
+already use.
 
 **v2.0 changed rows 1, 4 and 33, and added 47–52.** Every row whose class is `P_PASS`,
 `P_GATED` or `P_UNPROGRESSABLE` was re-derived against the new §4, as the amendment required —
