@@ -167,6 +167,35 @@
   .rir{font-family:var(--mono);font-size:13px;color:var(--ink-2);letter-spacing:.02em}
   .rir b{color:var(--signal);font-size:13px}
   .hright{display:flex;align-items:baseline;gap:10px}
+  /* Scanning in is the first thing that happens at the gym, before the app is
+     of any other use, so the control sits in the header where it is reachable
+     the moment the app opens rather than behind a session or a day. */
+  .cardBtn{appearance:none;border:none;background:var(--card);color:var(--ink-2);
+    border-radius:5px;padding:5px 9px;cursor:pointer;display:flex;align-items:center}
+  .cardBtn svg{width:17px;height:15px;display:block;fill:currentColor}
+
+  /* The barcode overlay is white in BOTH themes and takes the whole screen.
+     A scanner needs black on white with a quiet zone either side; the dark
+     palette would hand it a dark grey ground and a thin target. */
+  /* An author display rule outranks the UA's [hidden]{display:none}, so hiding
+     this by attribute alone leaves a white sheet permanently over the app. The
+     other sheets never hit it: their wrapper carries no display of its own. */
+  #cardSheet[hidden]{display:none}
+  #cardSheet{position:fixed;inset:0;z-index:90;background:#fff;color:#111;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:calc(18px + env(safe-area-inset-top)) 0 calc(18px + env(safe-area-inset-bottom))}
+  #cardSheet canvas{width:92vw;max-width:520px;height:30vh;max-height:230px;display:block}
+  .bcNum{font-family:var(--mono);font-size:30px;letter-spacing:.22em;color:#111;
+    margin-top:14px;padding:6px 10px;background:none;border:none;cursor:pointer}
+  .bcHint{font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;
+    color:#767676;margin-top:22px}
+  .bcFmt{position:absolute;bottom:calc(16px + env(safe-area-inset-bottom));
+    appearance:none;border:1px solid #ccc;background:none;color:#767676;border-radius:2px;
+    font-family:var(--mono);font-size:13px;letter-spacing:.08em;text-transform:uppercase;
+    padding:9px 14px;cursor:pointer}
+  .bcClose{position:absolute;top:calc(10px + env(safe-area-inset-top));right:10px;
+    appearance:none;border:none;background:none;color:#767676;font-family:var(--mono);
+    font-size:15px;letter-spacing:.1em;text-transform:uppercase;padding:12px 14px;cursor:pointer}
   .themeBtn{appearance:none;border:none;background:var(--card);color:var(--ink-2);
     font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
     padding:6px 8px;border-radius:5px;cursor:pointer;min-width:52px}
@@ -507,6 +536,9 @@
       <div class="brand">Meso Tracker</div>
       <div class="hright">
         <div class="rir" id="rirLabel"></div>
+        <button class="cardBtn" id="cardBtn" aria-label="Show gym membership barcode">
+          <svg viewBox="0 0 17 15"><rect x="0" y="0" width="2" height="15"/><rect x="3.5" y="0" width="1" height="15"/><rect x="6" y="0" width="2.5" height="15"/><rect x="10" y="0" width="1" height="15"/><rect x="12.5" y="0" width="1" height="15"/><rect x="15" y="0" width="2" height="15"/></svg>
+        </button>
         <button class="themeBtn" id="themeBtn" aria-label="Color theme">auto</button>
       </div>
     </div>
@@ -548,6 +580,13 @@
   </div>
 </div>
 <div class="saving" id="toast">SAVED</div>
+<div id="cardSheet" hidden>
+  <button class="bcClose" id="bcClose" type="button">Close</button>
+  <canvas id="bcCanvas"></canvas>
+  <button class="bcNum" id="bcNum" type="button" aria-label="Edit the membership number"></button>
+  <div class="bcHint">Hold it under the scanner</div>
+  <button class="bcFmt" id="bcFmt" type="button"></button>
+</div>
 <div id="swapSheet" hidden>
   <div class="sheetBack"></div>
   <div class="sheet">
@@ -884,7 +923,7 @@ function resolveEx(p, dayKey){
    renames, reorders and swaps never mislabel old logs.
    Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
 const STORE_KEY = "meso-tracker";
-const SCHEMA_VERSION = 13;
+const SCHEMA_VERSION = 14;
 const SPEC_VERSION = "1.9";      // load-progression-spec.md; bump both together
 const FIRST_MESO = "meso01";
 // The block being viewed. Equal to settings.activeMeso except while looking at
@@ -1005,7 +1044,11 @@ const MIGRATIONS = {
       m.seeds = m.seeds || {};
     });
     return s;
-  }
+  },
+  /* v14 stores the gym membership barcode. Settings rather than a block: the
+     card belongs to the gym, not to a mesocycle, and outlives every block.
+     Absent means no card, which is what every existing store means. */
+  13: s => { s.settings = s.settings || {}; if(s.settings.gymCard === undefined) s.settings.gymCard = null; return s; }
 };
 
 function freshStore(){
@@ -1082,6 +1125,7 @@ async function load(){
   // A rest clock still running hours later was forgotten, not rested.
   if(STORE.timers.restStart && Date.now() - STORE.timers.restStart > 6*3600*1000) STORE.timers.restStart = null;
   STORE.settings.activeMeso = STORE.settings.activeMeso || FIRST_MESO;
+  if(STORE.settings.gymCard === undefined) STORE.settings.gymCard = null;
   if(!STORE.mesos[activeMeso()]) STORE.mesos[activeMeso()] = freshBlock(FIRST_MESO);
   bindBlock(activeMeso());
   LOG.sets = LOG.sets || {};
@@ -2000,6 +2044,124 @@ function toastMsg(msg){
   const t=$("toast"); t.textContent=msg; t.classList.add("on");
   setTimeout(()=>{t.classList.remove("on"); t.textContent="SAVED";},1400);
 }
+
+/* ---- gym membership barcode ----
+   The gym's own app puts an advertisement in front of the barcode, and this app
+   is already what he opens on arrival, so the card lives here instead. Drawn
+   rather than stored as a picture: a generated barcode is sharp at any screen
+   size, survives a phone swap with the rest of the store, and costs a few
+   hundred bytes instead of an image.
+
+   TWO SYMBOLOGIES, because the one his gym uses cannot be established from a
+   screenshot - Code 39 and Code 128 render the same five digits as visibly
+   different bar patterns, and only the scanner at the door settles it. The
+   choice is stored, so it is a single tap once and never again. */
+const BC = {
+  /* Code 39. Nine elements per character, alternating bar and space, three of
+     them wide. Self-checking, and the * delimiters are part of the symbol. */
+  c39: {
+    "0":"nnnwwnwnn","1":"wnnwnnnnw","2":"nnwwnnnnw","3":"wnwwnnnnn","4":"nnnwwnnnw",
+    "5":"wnnwwnnnn","6":"nnwwwnnnn","7":"nnnwnnwnw","8":"wnnwnnwnn","9":"nnwwnnwnn",
+    "*":"nnwnwwnwn"
+  },
+  /* Code 128 pattern table, values 0-106, six element widths each. */
+  c128: ("212222222122222221121223121322131222122213122312132212221213221312231212112232122132122231" +
+         "113222123122123221223211221132221231213212223112312131311222321122321221312212322112322211" +
+         "212123212321232121111323131123131321112313132113132311211313231113231311112133112331132131" +
+         "113123113321133121313121211331231131213113213311213131311123311321331121312113312311332111" +
+         "314111221411431111111224111422121124121421141122141221112214112412122114122411142112142211" +
+         "241211221114413111241112134111111242121142121241114212124112124211411212421112421211212141" +
+         "214121412121111143111341131141114113114311411113411311113141114131311141411131211412211214" +
+         "211232").match(/.{6}/g)
+};
+
+// Both encoders return the same shape: a run of {bar, units} elements.
+function bars39(value){
+  const out = [], chars = ("*" + value + "*").split("");
+  chars.forEach((ch, i) => {
+    const pat = BC.c39[ch];
+    if(!pat) return;
+    for(let k = 0; k < 9; k++) out.push({bar: k % 2 === 0, units: pat[k] === "w" ? 3 : 1});
+    if(i < chars.length - 1) out.push({bar: false, units: 1});   // inter-character gap
+  });
+  return out;
+}
+function bars128(value){
+  // Set B throughout. Set C would be two digits per symbol and shorter, but it
+  // cannot carry an odd digit count without a mid-string switch, and length is
+  // not the constraint here - being right is.
+  const codes = [104];
+  for(const ch of value) codes.push(ch.charCodeAt(0) - 32);
+  let sum = codes[0];
+  for(let i = 1; i < codes.length; i++) sum += codes[i] * i;
+  codes.push(sum % 103);
+  const out = [];
+  codes.forEach(c => {
+    const pat = BC.c128[c];
+    for(let k = 0; k < 6; k++) out.push({bar: k % 2 === 0, units: +pat[k]});
+  });
+  "2331112".split("").forEach((w, k) => out.push({bar: k % 2 === 0, units: +w}));  // stop
+  return out;
+}
+
+const gymCard = () => STORE.settings.gymCard;
+
+function drawBarcode(){
+  const card = gymCard();
+  if(!card) return;
+  const cv = $("bcCanvas");
+  const els = card.format === "c128" ? bars128(card.number) : bars39(card.number);
+  const QUIET = 10;                                  // §quiet zone, in modules
+  const units = els.reduce((a, e) => a + e.units, 0) + QUIET * 2;
+  /* Draw at device pixels and snap every edge to a whole one. A bar that lands
+     on a half pixel is rendered grey on both sides, which is the difference
+     between a scan and a shrug. */
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = cv.clientWidth, cssH = cv.clientHeight;
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  const ctx = cv.getContext("2d");
+  const unit = cv.width / units;
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.fillStyle = "#000";
+  let x = QUIET * unit;
+  els.forEach(e => {
+    const w = e.units * unit;
+    if(e.bar) ctx.fillRect(Math.round(x), 0, Math.max(1, Math.round(w)), cv.height);
+    x += w;
+  });
+  $("bcNum").textContent = card.number;
+  $("bcFmt").textContent = card.format === "c128" ? "Code 128 · won't scan?" : "Code 39 · won't scan?";
+}
+
+function askCardNumber(){
+  const cur = gymCard() ? gymCard().number : "";
+  const v = (prompt("Gym membership number — the digits under the barcode:", cur) || "").trim();
+  if(!v) return false;
+  if(!/^[0-9]+$/.test(v)){ alert("Digits only — that is all either barcode format here can carry."); return false; }
+  STORE.settings.gymCard = {number: v, format: gymCard() ? gymCard().format : "c39"};
+  save();
+  return true;
+}
+
+function openCardSheet(){
+  if(!gymCard() && !askCardNumber()) return;
+  $("cardSheet").hidden = false;
+  drawBarcode();
+}
+function closeCardSheet(){ $("cardSheet").hidden = true; }
+
+// Redraw on rotation: the canvas is sized from its own CSS box.
+addEventListener("resize", () => { if(!$("cardSheet").hidden) drawBarcode(); });
+
+$("cardBtn").addEventListener("click", openCardSheet);
+$("bcClose").addEventListener("click", closeCardSheet);
+$("bcNum").addEventListener("click", () => { if(askCardNumber()) drawBarcode(); });
+$("bcFmt").addEventListener("click", () => {
+  const c = gymCard();
+  c.format = c.format === "c128" ? "c39" : "c128";
+  save(); drawBarcode();
+  toastMsg("NOW " + (c.format === "c128" ? "CODE 128" : "CODE 39"));
+});
 
 /* ---- theme ---- */
 function applyTheme(){
