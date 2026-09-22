@@ -107,6 +107,16 @@
     --alarm:#ff6b6b;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  /* The UA hides [hidden] with display:none, and ANY author display rule beats
+     it. .bigbtn sets display:block, so Start, End and Send-report were laid out
+     on every screen no matter what the code set - "End session 0 min" sat under
+     the last card permanently, and Start stayed after work was logged. They
+     live below the cards, which is why it went unseen.
+
+     Stated once, globally, rather than per element: the same defect had already
+     been fixed on the barcode overlay alone, and fixing it there taught nothing
+     about the next element to hit it. */
+  [hidden]{display:none !important}
   /* None of this is prose to be selected - it is a control surface, and a
      touch-and-hold that starts a selection is a tap that did not do what it
      was for. The old card drag reached for exactly this with a .no-select
@@ -163,7 +173,17 @@
   /* ---- header: compact, scrolls away. The dashboard below it is what sticks. ---- */
   header{background:var(--paper);padding:8px 14px 0}
   .brandrow{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:7px}
-  .brand{font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+  /* The app's name told you nothing; which block you are in tells you a great
+     deal, and is the one thing you must know before reading a card. So the
+     title is the block, and it is the way between blocks. */
+  .brand{appearance:none;border:none;background:none;padding:0;cursor:pointer;
+    font-family:var(--sans);font-size:13px;font-weight:800;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-2)}
+  .brand .caret{color:var(--line);font-weight:600}
+  .brand.readonly{color:var(--deload)}
+  /* Read-only is stated, not merely enforced. Every field on a closed block is
+     already disabled; without this the page just looks broken. */
+  .banner.ro{border-left-color:var(--ink-3);color:var(--ink-2)}
   .rir{font-family:var(--mono);font-size:13px;color:var(--ink-2);letter-spacing:.02em}
   .rir b{color:var(--signal);font-size:13px}
   .hright{display:flex;align-items:baseline;gap:10px}
@@ -177,10 +197,6 @@
   /* The barcode overlay is white in BOTH themes and takes the whole screen.
      A scanner needs black on white with a quiet zone either side; the dark
      palette would hand it a dark grey ground and a thin target. */
-  /* An author display rule outranks the UA's [hidden]{display:none}, so hiding
-     this by attribute alone leaves a white sheet permanently over the app. The
-     other sheets never hit it: their wrapper carries no display of its own. */
-  #cardSheet[hidden]{display:none}
   #cardSheet{position:fixed;inset:0;z-index:90;background:#fff;color:#111;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     padding:calc(18px + env(safe-area-inset-top)) 0 calc(18px + env(safe-area-inset-bottom))}
@@ -544,7 +560,7 @@
 <div class="wrap">
   <header>
     <div class="brandrow">
-      <div class="brand">Meso Tracker</div>
+      <button class="brand" id="blockBtn" aria-label="Switch mesocycle"></button>
       <div class="hright">
         <div class="rir" id="rirLabel"></div>
         <button class="cardBtn" id="cardBtn" aria-label="Show gym membership barcode">
@@ -1571,9 +1587,86 @@ function openAtNextUnfinished(){
 }
 
 function rememberPlace(){
+  // §13.6 in spirit: reading a finished block must not move the active one.
+  if(!viewingActive()) return;
   STORE.settings.week = W;
   STORE.settings.day = D;
   save();
+}
+
+/* §13. A block's display name comes from its PROGRAM where one is given, and
+   from its id otherwise, so a block created before its PROGRAM was named still
+   reads sensibly. */
+function blockName(id){
+  const blk = STORE.mesos[id];
+  const prog = blk && PROGRAMS[blk.program];
+  if(prog && prog.name) return prog.name;
+  const n = id.match(/\d+/);
+  return n ? `Meso ${n[0]}` : id;
+}
+
+// PROGRAMS nothing has claimed yet. §13.1: no PROGRAM, no create action.
+function unclaimedPrograms(){
+  const used = new Set(Object.values(STORE.mesos).map(m => m.program));
+  return Object.keys(PROGRAMS).filter(id => !used.has(id));
+}
+
+function renderBlockLabel(){
+  const b = $("blockBtn");
+  b.innerHTML = `${blockName(VIEW_MESO)} <span class="caret">\u25be</span>`;
+  b.classList.toggle("readonly", !viewingActive());
+}
+
+/* Switching to a finished block is a read: it must not disturb where the ACTIVE
+   block is parked, so the remembered week and day are only written while
+   viewing the active one. Coming back restores them. */
+function switchBlock(id){
+  if(!STORE.mesos[id] || !bindBlock(id)) return false;
+  if(viewingActive()){
+    const savedW = Number(STORE.settings.week);
+    W = (savedW >= 1 && savedW <= PROGRAM.weeks.length) ? savedW : 1;
+    D = PROGRAM.days.some(d => d.key === STORE.settings.day) ? STORE.settings.day : PROGRAM.days[0].key;
+  } else {
+    W = 1; D = PROGRAM.days[0].key;
+  }
+  activeOverride = null;
+  render();
+  scroller().scrollTo(0, 0);
+  return true;
+}
+
+/* §13.1. Refused outright if the PROGRAM does not validate (§13.7), showing
+   every error rather than the first, and creating nothing. */
+function startNextBlock(programId){
+  const prog = PROGRAMS[programId];
+  if(!prog) return;
+  const errs = validateProgram(prog, programId);
+  if(errs.length){ alert("That PROGRAM is not valid:\n\n" + errs.join("\n")); return; }
+  const name = prog.name || programId;
+  if(!confirm(`Start ${name}?\n\n${blockName(activeMeso())} stays exactly as it is and becomes read-only. Starting loads are seeded from its loading weeks.`)) return;
+  const res = createBlock(programId, programId);
+  closeSwapSheet();
+  if(!res.ok){ alert("Could not start it: " + res.why + (res.errors ? "\n\n" + res.errors.join("\n") : "")); return; }
+  render();
+  scroller().scrollTo(0, 0);
+  toastMsg(`${name.toUpperCase()} STARTED \u00b7 ${res.seeded} SEEDED`);
+}
+
+function openBlockSheet(){
+  const ids = Object.keys(STORE.mesos);
+  const rows = ids.map(id =>
+    `<button class="opt blockOpt" data-block="${id}" aria-pressed="${id === VIEW_MESO}">
+      <div class="oname">${blockName(id)}</div>
+      <div class="ometa">${id === activeMeso() ? "active" : "finished \u00b7 read-only"}</div>
+    </button>`).join("");
+  const next = unclaimedPrograms().map(pid =>
+    `<button class="opt skipOpt newBlockOpt" data-program="${pid}">
+      <div class="oname">Start ${PROGRAMS[pid].name || pid}</div>
+      <div class="ometa">${blockLengthOf(PROGRAMS[pid])} weeks \u00b7 seeds from ${blockName(activeMeso())}</div>
+    </button>`).join("");
+  $("swapTitle").textContent = "Mesocycle";
+  $("swapOpts").innerHTML = rows + next;
+  $("swapSheet").hidden = false;
 }
 
 function renderHeader(){
@@ -1584,7 +1677,13 @@ function renderHeader(){
       dayIsSkipped(W, d.key) ? ' class="skipped"' : ""}>${d.label}</button>`).join("");
   $("rirLabel").innerHTML = `Target RIR <b>${weekObj().rir}</b>`;
   $("dayFocus").textContent = dayObj().focus;
-  $("bannerSlot").innerHTML = weekObj().note ? `<div class="banner">${weekObj().note}</div>` : "";
+  renderBlockLabel();
+  /* Both, in that order: the read-only notice is about the whole block and the
+     week note about this week, and a deload week of a finished block has cause
+     to say both. */
+  $("bannerSlot").innerHTML =
+    (viewingActive() ? "" : `<div class="banner ro">${blockName(VIEW_MESO)} is finished. Nothing here can be edited \u2014 tap the title to go back to ${blockName(activeMeso())}.</div>`) +
+    (weekObj().note ? `<div class="banner">${weekObj().note}</div>` : "");
 }
 
 function renderDay(){
@@ -2607,6 +2706,11 @@ document.addEventListener("click", e=>{
 });
 
 document.addEventListener("click", e=>{
+  if(e.target.closest("#blockBtn")){ openBlockSheet(); return; }
+  const bo = e.target.closest(".blockOpt");
+  if(bo){ closeSwapSheet(); switchBlock(bo.dataset.block); return; }
+  const nb2 = e.target.closest(".newBlockOpt");
+  if(nb2){ startNextBlock(nb2.dataset.program); return; }
   const wb = e.target.closest("#weekSeg button");
   if(wb){ W = +wb.dataset.w; activeOverride = null; rememberPlace(); render(); scroller().scrollTo(0,0); return; }
   const db = e.target.closest("#daySeg button");
