@@ -516,7 +516,10 @@
   .vol summary::-webkit-details-marker{display:none}
   .vol summary::after{content:" +";color:var(--ink-3)}
   .vol[open] summary::after{content:" –"}
-  .voltbl{display:grid;grid-template-columns:1fr auto auto;gap:2px 10px;font-family:var(--mono);font-size:13px;padding-bottom:14px}
+  .voltbl{display:grid;grid-template-columns:1fr auto auto auto;gap:2px 10px;font-family:var(--mono);font-size:13px;padding-bottom:14px}
+  /* A muscle with no core sets vanishes entirely when the optional day is
+     missed, which is the failure this table exists to make visible. */
+  .voltbl .nocore{color:var(--deload)}
   .voltbl div{padding:3px 0;border-bottom:1px solid var(--line-2)}
   .voltbl .h{color:var(--ink-3);font-size:13px;letter-spacing:.1em;text-transform:uppercase}
   .bar{height:6px;background:var(--signal);display:inline-block;vertical-align:middle}
@@ -1699,17 +1702,34 @@ function markTallCards(){
     c.classList.toggle("tall", c.getBoundingClientRect().height > room));
 }
 
+/* §13.8. Two figures per muscle, always both. CORE counts non-optional days
+   only - the volume the block delivers in a week the optional day does not
+   happen - and TOTAL counts every day. Where no day is optional they are equal,
+   which is correct rather than redundant.
+
+   This is the check for the failure Meso 01 had: hamstrings lived on Friday
+   alone, Friday was logged one week in four, and the planned volume was a
+   number that never happened. A core figure of zero says a muscle disappears
+   whenever the optional day is missed. */
 function renderVolume(){
-  const tally = {};
-  PROGRAM.days.forEach(d=>d.ex.forEach(ex=>{
+  const core = {}, total = {};
+  PROGRAM.days.forEach(d => d.ex.forEach(ex => {
     const m = effectiveLib(d.key, ex.id).muscle;
-    tally[m] = (tally[m]||0) + ex.sets[W-1];
+    const n = ex.sets[W-1] || 0;
+    total[m] = (total[m] || 0) + n;
+    if(!d.optional) core[m] = (core[m] || 0) + n;
   }));
-  const entries = Object.entries(tally).sort((a,b)=>b[1]-a[1]);
-  const max = Math.max(...entries.map(e=>e[1]));
-  $("volTbl").innerHTML = `<div class="h">Muscle</div><div class="h">Sets</div><div class="h"></div>` +
-    entries.map(([m,v])=>`<div>${m}</div><div style="text-align:right">${v}</div>
-      <div><span class="bar" style="width:${Math.round(v/max*72)}px"></span></div>`).join("");
+  const entries = Object.entries(total).sort((a,b) => b[1] - a[1]);
+  const max = Math.max(...entries.map(e => e[1]), 1);
+  $("volTbl").innerHTML =
+    `<div class="h">Muscle</div><div class="h">Core</div><div class="h">Total</div><div class="h"></div>` +
+    entries.map(([m, v]) => {
+      const c = core[m] || 0;
+      return `<div>${m}</div>
+      <div style="text-align:right" class="${c === 0 ? "nocore" : ""}">${c}</div>
+      <div style="text-align:right">${v}</div>
+      <div><span class="bar" style="width:${Math.round(v/max*56)}px"></span></div>`;
+    }).join("");
 }
 
 /* ---- dashboard: two stopwatches and a live set count ----
