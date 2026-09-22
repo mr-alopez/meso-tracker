@@ -1,0 +1,44 @@
+{
+  "id": "meso02",
+  "name": "Meso 02 · Two-day core",
+  "weeks": [
+    { "n": 1, "rir": "3" },
+    { "n": 2, "rir": "3" },
+    { "n": 3, "rir": "2" },
+    { "n": 4, "rir": "1" },
+    { "n": 5, "rir": "4–5", "note": "Deload. Sets roughly halved, load about 70% of week 4. Leave everything in the tank and keep the runs easy." }
+  ],
+  "days": [
+    {
+      "key": "mon", "label": "Mon", "focus": "A · upper chest first",
+      "ex": [
+        { "id": "inc_db_press",        "sets": [3, 4, 4, 4, 2] },
+        { "id": "bb_squat_high",       "sets": [3, 3, 3, 3, 2] },
+        { "id": "row_chest_supported", "sets": [3, 3, 3, 3, 2] },
+        { "id": "cable_facepull",      "sets": [3, 3, 3, 3, 2] },
+        { "id": "hammer_curl",         "sets": [2, 2, 2, 2, 1] },
+        { "id": "cable_pushdown_rope", "sets": [2, 2, 2, 2, 1] }
+      ]
+    },
+    {
+      "key": "wed", "label": "Wed", "focus": "B",
+      "ex": [
+        { "id": "cable_flye_low",       "sets": [3, 3, 3, 3, 2] },
+        { "id": "pulldown_neutral",     "sets": [3, 3, 3, 3, 2], "start": 70 },
+        { "id": "leg_curl_seated",      "sets": [3, 3, 3, 3, 2], "start": 140 },
+        { "id": "leg_extension",        "sets": [2, 2, 2, 2, 1] },
+        { "id": "ez_preacher_curl",     "sets": [3, 3, 3, 3, 2] },
+        { "id": "cable_rear_delt_flye", "sets": [2, 2, 2, 2, 1] }
+      ]
+    },
+    {
+      "key": "fri", "label": "Fri", "focus": "C · optional", "optional": true,
+      "ex": [
+        { "id": "machine_flye",       "sets": [3, 3, 3, 3, 2], "start": 70 },
+        { "id": "row_db_single",      "sets": [3, 3, 3, 3, 2] },
+        { "id": "cable_pull_through", "sets": [2, 2, 2, 2, 1] },
+        { "id": "cable_curl",         "sets": [2, 2, 2, 2, 1] }
+      ]
+    }
+  ]
+}
