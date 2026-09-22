@@ -672,6 +672,17 @@ escalate to a more insistent swap prompt. Currently both weeks read identically.
   pain is not mutually exclusive with effort.
 - Feedback is **optional**. A missing effort value is treated as `"right"`. Never
   block logging or nag for it.
+- **The three options are labelled `TOO LIGHT` / `JUST RIGHT` / `TOO HEAVY`.** The stored
+  values remain `easy` / `right` / `brutal`, unmigrated, and every rule in this document
+  reads the stored value. The labels changed because the question is about **overshoot
+  relative to the RIR target**, not about how hard the set was.
+
+  **Feedback collected before Meso 02 is not directly comparable to feedback after it.** It
+  was taken under the old labels, where `brutal` read as severity rather than overshoot and
+  was under-used in consequence: a set can be both hard and correctly loaded, and the old
+  wording invited "no, it wasn't brutal" where the new wording asks a question the lifter
+  can answer. Any comparison of effort distributions across that boundary is measuring the
+  wording as much as the training.
 - Suggestion text is short by design. It is read mid-session, one-handed, between
   sets.
 
