@@ -454,7 +454,14 @@
   .row.active input[type=number]::placeholder{color:var(--ink-3)}
   input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   input:focus{outline:2px solid var(--signal);outline-offset:-1px;border-color:var(--signal)}
-  .ghost{display:block;font-family:var(--mono);font-size:13px;color:var(--ink-3);text-align:center;padding-top:2px;min-height:15px}
+  /* One line tall whether it holds text or not. min-height was 15px against a
+     real line of 18.2px, so the ghost under the weight box (which always says
+     something) was 20.2px while the empty one under reps sat at its 15px floor.
+     The row centres each column on its own height, so that 5.2px difference
+     lifted the weight box 2.6px above the reps box. Stating the line-height
+     rather than inheriting it keeps the two equal by construction. */
+  .ghost{display:block;font-family:var(--mono);font-size:13px;line-height:18px;color:var(--ink-3);
+    text-align:center;padding-top:2px;min-height:20px}
   .chk{width:46px;height:44px;border:1px solid var(--line);background:var(--field);border-radius:2px;cursor:pointer;
     display:flex;align-items:center;justify-content:center;padding:0;margin-bottom:17px}
   .chk svg{width:18px;height:18px;stroke:var(--line);stroke-width:3;fill:none;stroke-linecap:square}
