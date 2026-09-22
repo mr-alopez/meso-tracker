@@ -254,12 +254,17 @@ load. Reported by the lifter who loaded it.
 `skull_crusher`, overriding the Barbell default of +5. Two of the four are in the Meso 01
 PROGRAM; all four are in the library and eligible for substitution, so all four carry it.
 
-**Open, and flagged for the next visit.** A scalar `step` asserts evenly spaced loads. If
-these are *fixed-weight* EZ bars rather than plate-loaded ones, they are a rack in the sense
-below — a set of real loads, possibly unevenly spaced — and should be modelled with a `rack`
-rather than a flat step, exactly as the dumbbells are. A flat 10 is the conservative reading
-of one observation, not a measurement of the whole range, and it should not be treated as
-one until the rack is either confirmed absent or written down.
+**Resolved 22 Sep 2026.** The EZ bars are **fixed-weight, at 10 lb intervals** — his
+observation, standing at them. So they are a rack, but an evenly spaced one, and for an evenly
+spaced rack a scalar `step` and a `rack` produce identical arithmetic everywhere except the
+ends. `step: 10` stands.
+
+**One thing a scalar cannot express, and it is still open:** a fixed-weight rack has a
+heaviest bar. A scalar step will happily suggest a load past the end of the rack, where a
+`rack` list would stop. The lightest and heaviest bar are not recorded, so that ceiling is
+currently unmodelled. It bites only if an EZ movement climbs to the top of the rack, which on
+current loads (40 and 45) is some way off — but it should be written down at the next visit
+rather than discovered by a suggestion for a bar that does not exist.
 
 **Non-uniform racks.** A single `step` per exercise assumes evenly spaced loads. The
 dumbbell rack is not evenly spaced: it runs 10, 12, 15, 20, 25 and upward in fives, so the
@@ -676,6 +681,14 @@ escalate to a more insistent swap prompt. Currently both weeks read identically.
   values remain `easy` / `right` / `brutal`, unmigrated, and every rule in this document
   reads the stored value. The labels changed because the question is about **overshoot
   relative to the RIR target**, not about how hard the set was.
+
+  **The session report uses the labels, not the stored values** — it reads `felt too heavy`,
+  and its own "how to read this" preamble names the three labels. The report is a display
+  surface: the words a reader sees should be the words the lifter was answering.
+
+  A consequence worth knowing: the report renders stored values through the *current* labels,
+  so re-reporting a Meso 01 day now shows it in the new vocabulary even though it was
+  collected under the old one.
 
   **Feedback collected before Meso 02 is not directly comparable to feedback after it.** It
   was taken under the old labels, where `brutal` read as severity rather than overshoot and
