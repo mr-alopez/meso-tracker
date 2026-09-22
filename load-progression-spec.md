@@ -1,5 +1,11 @@
 # Load Progression Spec — meso-tracker
 
+Version 2.2 · 22 Sep 2026 — generalises block length. `blockLength` is per block, read from
+that block's PROGRAM; the deload is the final week, by position. Adds §13.7 PROGRAM validation,
+replaces §13.4's order rule, and corrects v2.1's attribution on vector 7. Behaviour-identical
+for four-week blocks: all 52 existing vectors pass unchanged, which is the amendment's own
+acceptance test. Vectors 53–59 are new.
+
 Version 2.1a · 22 Sep 2026 — first completed line of the §2 equipment audit: the EZ bars
 carry no 5 lb increment, so four exercises take `step: 10` over the Barbell default. Library
 data and documentation only; no engine change.
@@ -152,6 +158,27 @@ field and defaults to `"weight"`.
 `dip_weighted` and `pullup_weighted`, carrying the default `weight` sense. No fourth load
 sense is needed. Separate ids are correct rather than convenient: adding a belt changes the
 exercise and the rep counts are not comparable, so history should not transfer between them.
+
+---
+
+### 1.1 Block length
+
+| Term | Definition |
+|---|---|
+| `blockLength` | Number of weeks in the block's PROGRAM. Per block, never global |
+| `deloadWeek` | `blockLength` — the final week |
+| `loadingWeeks` | Weeks `1 … blockLength − 1` |
+| `lastLoadingWeek` | `blockLength − 1` |
+
+**The deload is the final week, determined by position.** Not flagged in PROGRAM; a flag would
+be a second source of truth. `blockLength ≥ 2`. **[revisit]** Every block ends in exactly one
+deload week.
+
+Seeding and the deload cascade read the `blockLength` of **the block whose weeks they are
+walking**, not the active block's. Seeding Meso 02 from Meso 01 walks 3 … 1; seeding Meso 03
+from a five-week Meso 02 walks 4 … 1.
+
+Meso 01 remains four weeks and must render and evaluate as four weeks.
 
 ---
 
@@ -441,7 +468,7 @@ Load is ignored entirely. Progression is by reps.
 
 | # | Condition | Outcome | Text |
 |---|---|---|---|
-| 1 | Current week is 4 | `DELOAD_BW` | `deload — stop 4–5 shy of failure` |
+| 1 | Current week is `deloadWeek` | `DELOAD_BW` | `deload — stop 4–5 shy of failure` |
 | 2 | `feedback.pain` set last week | `PAIN_BW` | `pain flagged — go easier or swap the movement` |
 | 3 | No qualifying sets in prior week | `NO_DATA_BW` | `2 shy of failure` |
 | 4 | `n < prescribed` | `INCOMPLETE_BW` | `beat {last.reps} — {n} of {prescribed} sets logged` |
@@ -460,7 +487,7 @@ reads reps only and is sense-agnostic.
 
 | # | Condition | Outcome | Text |
 |---|---|---|---|
-| 1 | Current week is 4 | `DELOAD_ASSIST` | see §7.1 |
+| 1 | Current week is `deloadWeek` | `DELOAD_ASSIST` | see §7.1 |
 | 2 | `feedback.pain` set last week | `PAIN_ASSIST` | `pain flagged — more assistance or swap the movement` |
 | 3 | No qualifying sets in prior week | `NO_DATA` | `find it — {top} reps, {rir} in reserve` |
 | 4 | `mixedLoad` | `MIXED` | `pick one assist level and hold it` |
@@ -491,7 +518,7 @@ at the unassisted library entry rather than attempting arithmetic below the floo
 
 | # | Condition | Outcome |
 |---|---|---|
-| 1 | Current week is 4 | `DELOAD` (§7) |
+| 1 | Current week is `deloadWeek` | `DELOAD` (§7) |
 | 2 | No qualifying sets in prior week | `NO_DATA` |
 | 3 | `feedback.pain` set last week | `PAIN` |
 | 4 | `mixedLoad` | `MIXED` |
@@ -500,29 +527,30 @@ at the unassisted library entry rather than attempting arithmetic below the floo
 
 ---
 
-## 7. Deload behaviour (week 4)
+## 7. Deload behaviour (the deload week)
 
-- **No progression suggestion is ever produced during week 4**, regardless of feedback
-  or performance.
-- **Week 4 feedback is recorded but not acted on.** It exists for your reading, not
+- **No progression suggestion is ever produced during the deload week**, regardless of
+  feedback or performance.
+- **Deload-week feedback is recorded but not acted on.** It exists for your reading, not
   the algorithm's.
 - **Next mesocycle inheritance:** week 1 of a new meso inherits, per exercise id, the
-  `workingLoad` of the **reference week among loading weeks only** — the most recent of
-  weeks 1–3 holding qualifying sets for that exercise. Week 4 is excluded: inheriting from
-  a deload would seed the next block roughly 30% light. **No increment is applied** — a
+  `workingLoad` of the **reference week among loading weeks only** — the most recent
+  loading week of the outgoing block holding qualifying sets for that exercise. The deload
+  week is excluded: inheriting from a deload would seed the next block roughly 30% light. **No increment is applied** — a
   fresh block opens at 3 RIR, so the same load will feel easy for one week and §8 will add
   on its own evidence in week 2; opening a step higher risks starting above what week 1's
   RIR target supports, and one easy week costs nothing. *(Decided v1.6, discharging the
   v1.1 `[revisit]`.)* If no loading week holds qualifying sets, inheritance falls to the
   prior meso's PROGRAM `start` for that exercise, then to none.
 
-**Deload load, sense `weight`.** Resolves the case where week 3 has no computable
-working load:
+**Deload load, sense `weight`.** Resolves the case where the last loading week has no
+computable working load:
 
 ```
 deloadBase =
-  1. week 3 workingLoad, if computable
-  2. else the most recent prior week (2, then 1) with a computable workingLoad
+  1. lastLoadingWeek workingLoad, if computable
+  2. else the most recent prior loading week, walking lastLoadingWeek-1 down to 1,
+     with a computable workingLoad
   3. else the PROGRAM start value for this exercise
   4. else none
 ```
@@ -540,7 +568,7 @@ If no base exists:
 text: `about two-thirds of your usual — {rir} RIR, stop early`
 ```
 
-Sense `assist` takes its own week-4 row (§6.2 row 1); sense `none` takes §6.1 row 1.
+Sense `assist` takes its own deload row (§6.2 row 1); sense `none` takes §6.1 row 1.
 
 ### 7.1 Deload under sense `assist`
 
@@ -769,6 +797,13 @@ Every vector must pass. Unless stated, `prescribed` is 3 and effort is `right`.
 | 50 | BB good morning 65, 10–12, step 5, 12/11/10, right, presc 3 | `P_PASS` | `ADD` | `65 ✓ → try 70` |
 | 51 | Load 10, 12–20, step 5, 20/18/16, right, presc 3 | `P_GATED` | `HOLD_GATE` | `repeat 10 — need 23+ before 15` |
 | 52 | Load 10, 12–20, step 10, 20/18/16, right, presc 3 | `P_UNPROGRESSABLE` | `HOLD` | `10 is too big a jump here — hold 10 and add reps` |
+| 53 | **Five-week block.** Week 4. Ref week 3: `bb_squat_high` 85 × 12/11/10, 8–12, step 5, presc 3, right | `P_PASS` | `ADD` | `85 ✓ → try 90` |
+| 54 | Five-week block. Week 5. Week 4: `bb_squat_high` 90 × 10/9/8, step 5, presc 3 | — | `DELOAD` | `60 — 4–5 RIR, stop early` |
+| 55 | Five-week block. Week 5. Week 4 unlogged. Week 3: `bb_squat_high` 85 × 12/11/10, step 5, presc 3 | — | `DELOAD` | `55 — 4–5 RIR, stop early` |
+| 56 | Five-week block. Week 5. Week 4: `pullup_assisted` assist 40 × 12/11/10, presc 3, step 10 | — | `DELOAD_ASSIST` | `50 — 4–5 RIR, stop early` |
+| 57 | Five-week block. Week 5. `pushup` | — | `DELOAD_BW` | `deload — stop 4–5 shy of failure` |
+| 58 | New block wk 1, RIR 3. Outgoing block **five weeks**; `bb_squat_high` qualifying in weeks 1–4 at 80, 85, 85, 90. No PROGRAM `start` | — | `NO_DATA` | `start 90` |
+| 59 | New block wk 1, RIR 3. Outgoing block five weeks; logged **only** in week 5 at 60. No PROGRAM `start`. Range 10–15 | — | `NO_DATA` | `find it — 15 reps, 3 in reserve` |
 
 Vectors 1–12 originate with v1.0/v1.1. **Vector 9's text was amended by v1.2 §9**, which
 removed the load number from `PAIN`. **Vector 11 was amended by v1.3**, which supplied the
@@ -779,6 +814,25 @@ the `BW_PROGRESS` outcome name. Vectors 1–8, 10 and 12 are unchanged: all are 
 across the class and outcome columns — vectors 1, 3, 4 and 5 had stated a class where the
 other rows stated an outcome — and changed no expectation.
 
+**v2.2 changed no expectation either, and that is its acceptance test.** For a four-week block
+`deloadWeek` is 4, `loadingWeeks` is 1–3 and `lastLoadingWeek` is 3, so every generalised rule
+reduces to the form it already had. Any failure among rows 1–52 means a week-literal replacement
+was made incorrectly. **Rows 53–59 are new**, all on a five-week block:
+
+- **53 is the guard**, and the row most likely to catch a bad replacement. In a five-week block
+  week 4 is a *loading* week, so §6.3 row 1 must not fire. Any surviving `week === 4` test
+  returns `DELOAD` here instead of `ADD`.
+- **54–57** exercise the deload at week 5 across all three load senses, including the cascade
+  stepping back past an unlogged week 4 to week 3 in **55**.
+- **58 and 59** seed from a five-week outgoing block: 58 walks its weeks 4–1 and finds 90 in
+  week 4, which is a loading week there; 59 confirms week 5 is that block's deload and is
+  excluded, leaving nothing to seed.
+
+**Validation is not `suggestLoad`** and does not belong in this table. The harness additionally
+asserts that `validateProgram` returns no errors for every entry in `PROGRAMS`, and that a
+synthetic five-week PROGRAM carrying one four-length set array returns exactly one error with
+§13.7's text.
+
 **v2.1 changed no expectation.** Vector 7's input cell is relabelled from "Machine 70 step
 2.5" to "Load 70 … step 2.5": after the Machine Flye correction no library entry carries a step
 finer than its category default, so the row no longer describes any exercise. **It is retained**
@@ -786,6 +840,14 @@ finer than its category default, so the row no longer describes any exercise. **
 does not contain when it is the sole guard on a mechanism. No spec text was adjusted to suit it,
 which is the principle that matters. The relabel matches the synthetic style rows 51 and 52
 already use.
+
+**v2.2 corrects v2.1's attribution here.** v2.1 justified that relabel as "matching the treatment
+v2.0 already applies to vector 1". No such treatment exists: the instruction to relabel vector 1
+lived in the v1.6 amendment, whose library changes were superseded by v1.7's rack model and never
+merged. The resolution taken — the synthetic style of rows 51–52 — stands on its own. **Vector 1
+is not relabelled**: under v2.0 it reads `ADD` and describes a real library configuration, a
+dumbbell press at 25 with the rack stepping to 30. Vector 7 is synthetic because no library
+machine carries a 2.5 lb step.
 
 **v2.0 changed rows 1, 4 and 33, and added 47–52.** Every row whose class is `P_PASS`,
 `P_GATED` or `P_UNPROGRESSABLE` was re-derived against the new §4, as the amendment required —
@@ -881,10 +943,12 @@ On creation, in order:
 ### 13.2 Seeding
 
 Per exercise id, the seed is the working load of the **reference week among loading weeks
-only** — the most recent of weeks 1–3 in the outgoing block holding qualifying sets for that
-exercise id, per §7.
+only** — the most recent loading week of the outgoing block holding qualifying sets for that
+exercise id, per §7. The walk runs the **outgoing** block's `lastLoadingWeek` down to 1, on
+that block's own `blockLength`.
 
-Week 4 is excluded. Seeding from a deload would open the new block roughly 30% light.
+The outgoing block's deload week is excluded. Seeding from a deload would open the new block
+roughly 30% light.
 
 **An explicit PROGRAM `start` value wins over a seed.** Authoring beats inference: if the next
 block names a starting load for an exercise, that is a deliberate decision and the seed does
@@ -906,7 +970,7 @@ find-it text otherwise.
 This is a hard boundary, not a preference. Two reasons:
 
 The walk-back searches for the most recent week holding qualifying sets. The outgoing block's
-most recent such week is **week 4, the deload**. Left unbounded, week 1 of every new block
+most recent such week is **its deload week**. Left unbounded, week 1 of every new block
 would evaluate against deload performance and suggest progression from deload loads.
 
 Restricting the walk to loading weeks would avoid that but is still wrong: §13.2 already
@@ -917,15 +981,48 @@ to a PROGRAM that may prescribe different sets, reps, or exercise order.
 
 | Data | Carries | Rationale |
 |---|---|---|
-| `order` | **Yes** | A durable preference about how a day is arranged. Retain relative order for ids present in the new PROGRAM; append new exercises in PROGRAM order |
+| `order` | **No** | A new block's exercise order is an authoring decision, with priority work placed first. A reorder made during a block is frequently a response to that session's circumstances — a busy machine, a missing bench — and persists because the app stores only the latest arrangement. Carrying it forward would let a situational reorder silently override the next block's design. Same reasoning as `swaps` |
 | `swaps` | **No** | A swap says "not what was programmed." The new PROGRAM is authored deliberately — carrying swaps forward would silently override that authoring. If a swapped exercise is wanted, it gets programmed |
 | `notes` | **No** | Dated observations tied to a session |
 | `sets`, `warmups`, `feedback`, `skips`, `daySkips` | **No** | Results and events, per block by definition |
+
+*Supersedes the v1.9 decision that order carries.* That decision treated order as a durable
+preference. Meso 01's evidence says otherwise: its Monday order placed the block's priority lift
+third, behind two exercises working the same muscles — an arrangement that, carried forward,
+would have undone Meso 02's priority-first design.
+
+Vector-neutral: no vector reads order, and `suggestLoad` never consults it. Confirmed by source
+audit — `order` is read only by the display list and written by the reorder sheet and block
+creation.
 
 **[revisit]** `notes` conflates two kinds of thing: dated observations, which are per block, and
 durable equipment settings — cable height, bench angle, seat position — which are properties of
 the exercise at that gym and are lost at every transition. A per-exercise settings field,
 carried across blocks, would be the right home. Not specified here.
+
+### 13.7 PROGRAM validation
+
+A PROGRAM is invalid if any of:
+
+| Check | Error text |
+|---|---|
+| `blockLength < 2` | `{program}: needs at least one loading week and a deload` |
+| An exercise's set array length ≠ `blockLength` | `{program} {day} {exerciseId}: {n} set counts for a {blockLength}-week block` |
+| An exercise id is not in the library | `{program} {day}: unknown exercise {exerciseId}` |
+
+`validateProgram(program)` returns the list of errors; empty means valid. **Never pad, truncate,
+or default a mismatched array.**
+
+Where it runs, and what each surface does with a failure:
+
+| Surface | On failure |
+|---|---|
+| Vector harness | Validates every PROGRAM in `PROGRAMS`. Any error is a harness failure, reported alongside vector results |
+| Block creation (§13.1) | **Refused.** The create action shows the full error list and creates nothing |
+| Rendering an existing block | The affected exercise card renders the error text in place of its set rows. Never zero rows silently |
+
+The render case should be unreachable — the other two surfaces catch it first — and exists so
+that if it is ever reached, the failure is visible rather than a quietly empty card.
 
 ### 13.5 PROGRAM drift
 
