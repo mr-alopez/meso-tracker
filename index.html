@@ -318,10 +318,15 @@
     stroke-linecap:square;pointer-events:none}
   .rodown svg{transform:rotate(180deg)}
   .roup[disabled],.rodown[disabled]{opacity:.25;cursor:default}
-  /* Snapping off while typing. The browser scrolls the focused field into view and
-     mandatory snapping then re-snaps to the nearest card, tugging the field
-     back under the bar or off the bottom - which is the field being "a hair
-     cut off" once the keyboard is up. */
+  /* Snapping suspended. Set when a field takes focus: the browser scrolls that
+     field into view and mandatory snapping then re-snaps to the nearest card,
+     tugging the field back under the bar or off the bottom - the field being
+     "a hair cut off" once the keyboard is up.
+
+     It now OUTLIVES the typing. Removing it is what moved the view after a set
+     was ticked, so it is held until the next deliberate scroll; see the
+     focusout handler. The class name is historical - it means "do not snap
+     yet", not "a field is focused". */
   .wrap.typing{scroll-snap-type:none}
   /* Video and swap ride the muscle-tag line. That line was nearly empty and
      the buttons cost no row of their own there, which is what paid for the
@@ -2070,15 +2075,45 @@ document.addEventListener("focusin", e => {
   }
   if(e.target.matches && e.target.matches("input,textarea")) scroller().classList.add("typing");
 });
+/* Restoring snapping MOVES THE VIEW, and that is the whole of "ticking a set
+   scrolls me to the next exercise". The checkmark is innocent: isolated by
+   running the re-render alone with snapping still suspended, which stays put,
+   against restoring snapping alone with no re-render, which jumps a whole card.
+
+   Mandatory snapping cannot rest off a snap point, so the moment it comes back
+   the browser resolves to the nearest one. Reaching a card's last set means
+   scrolling down that card - the last set is at the bottom - and from there the
+   nearest snap point is the NEXT card's top.
+
+   So it is not restored on blur. It is restored on the next deliberate scroll,
+   by which time moving the view is what was asked for. The threshold is there
+   because dismissing the keyboard resizes the viewport and can itself fire a
+   scroll of a few pixels; that must not count as the user scrolling. */
+let snapPending = false, snapAnchor = 0;
+
 document.addEventListener("focusout", e => {
   if(!(e.target.matches && e.target.matches("input,textarea"))) return;
   // Deferred: moving between two fields fires focusout before the next focusin,
-  // and dropping the class in between would let a snap fire mid-hop.
+  // and acting in between would let a snap fire mid-hop.
   setTimeout(() => {
     const a = document.activeElement;
-    if(!a || !a.matches || !a.matches("input,textarea")) scroller().classList.remove("typing");
+    if(a && a.matches && a.matches("input,textarea")) return;
+    snapPending = true;
+    snapAnchor = scroller().scrollTop;
   }, 0);
 });
+
+/* Capture on document rather than on the scroller: scroll does not bubble, and
+   `scroller` is a const declared further down, so touching it at registration
+   time is a temporal-dead-zone error. Resolved inside the handler instead. */
+document.addEventListener("scroll", e => {
+  if(!snapPending) return;
+  const w = scroller();
+  if(e.target !== w) return;
+  if(Math.abs(w.scrollTop - snapAnchor) < 24) return;   // keyboard settling, not a scroll
+  snapPending = false;
+  w.classList.remove("typing");
+}, true);
 
 function render(){ renderHeader(); renderDay(); renderVolume(); renderDash(); }
 
