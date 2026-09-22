@@ -116,11 +116,11 @@
       "cue": "Chest-supported on an incline bench removes the low back entirely — do that version by default." },
 
     { "id": "ez_preacher_curl", "name": "EZ Bar Preacher Curl", "slot": "biceps_curl", "muscle": "Biceps",
-      "equipment": ["barbell", "preacher bench"], "unit": "", "spinalLoad": "low" },
+      "equipment": ["barbell", "preacher bench"], "unit": "", "spinalLoad": "low", "step": 10 },
     { "id": "ez_curl_wide", "name": "EZ Bar Curl (Wide Grip)", "slot": "biceps_curl", "muscle": "Biceps",
-      "equipment": ["barbell"], "unit": "", "spinalLoad": "low" },
+      "equipment": ["barbell"], "unit": "", "spinalLoad": "low", "step": 10 },
     { "id": "ez_curl_narrow", "name": "EZ Bar Curl (Narrow Grip)", "slot": "biceps_curl", "muscle": "Biceps",
-      "equipment": ["barbell"], "unit": "", "spinalLoad": "low" },
+      "equipment": ["barbell"], "unit": "", "spinalLoad": "low", "step": 10 },
     { "id": "db_curl_incline", "name": "Dumbbell Curl (Incline)", "slot": "biceps_curl", "muscle": "Biceps",
       "equipment": ["dumbbell", "incline bench"], "unit": "per DB", "spinalLoad": "low",
       "cue": "Stretched position for the long head. Keep the upper arm behind the torso." },
@@ -138,7 +138,7 @@
       "equipment": ["cable"], "unit": "", "spinalLoad": "low",
       "cue": "The stretched position pushdowns don't cover. Worth one slot a week." },
     { "id": "skull_crusher", "name": "EZ Bar Skull Crusher", "slot": "triceps_extension", "muscle": "Triceps",
-      "equipment": ["barbell", "bench"], "unit": "", "spinalLoad": "low" },
+      "equipment": ["barbell", "bench"], "unit": "", "spinalLoad": "low", "step": 10 },
     { "id": "dip_triceps", "name": "Dip (Upright)", "slot": "triceps_extension", "muscle": "Triceps",
       "equipment": ["dip station"], "unit": "bodyweight", "spinalLoad": "low", "loadSense": "none" },
 
