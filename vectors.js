@@ -10,6 +10,16 @@
 
    load-progression-spec.md §12 is the source of truth.
 
+   BLOCK DEFAULTS (v2.2). Unless a row states otherwise it runs on a four-week
+   block: deloadWeek 4, week RIR 3 / 2 / 1 / 4-5. Those used to come from a
+   WEEK_RIR_TEXT constant inside the engine, which v2.2 removed because RIR is
+   a property of a PROGRAM, not of the engine. Supplying them here rather than
+   there is what keeps rows 1-52 passing unchanged: for a four-week block every
+   generalised rule reduces to the form it already had, and that equivalence is
+   this amendment's acceptance test.
+
+   Rows 53-59 run on a five-week block, RIR 3 / 3 / 2 / 1 / 4-5.
+
    §4 v2.0 shipped 22 Sep 2026 and this file is no longer diverged: rows 1, 4
    and 33 carry their v2.0 expectations and rows 47-52 are present, for 52 in
    all. Each of the nine affected rows was derived by hand from §4's landing
@@ -31,6 +41,13 @@
   const R10_12 = {bottom: 10, top: 12};
   const NO_RANGE = {bottom: 0, top: 0};   // sense "none" never reads the range
   const RACK = [10, 12, 15, 20, 25, 30];  // the gym's dumbbells: fives, except the 12
+
+  // §1.1: a block's shape, supplied per row. RIR_4 mirrors Meso 01.
+  const RIR_4 = {1: "3", 2: "2", 3: "1", 4: "4–5"};
+  const RIR_5 = {1: "3", 2: "3", 3: "2", 4: "1", 5: "4–5"};
+  const block = (len, rirs) => ({deloadWeek: len, rirs});
+  const BLOCK_4 = block(4, RIR_4);
+  const BLOCK_5 = block(5, RIR_5);
 
   const VECTORS = [
     { n: 1, expect: {class: "P_PASS", outcome: "ADD", text: "25 ✓ → try 30"},
@@ -285,7 +302,48 @@
     { n: 52, expect: {class: "P_UNPROGRESSABLE", outcome: "HOLD",
                      text: "10 is too big a jump here — hold 10 and add reps"},
       input: {weekSets: {1: at(10, [20, 18, 16])}, prescribed: 3, range: R12_20, step: 10,
-              feedback: {effort: "right"}, currentWeek: 2} }
+              feedback: {effort: "right"}, currentWeek: 2} },
+
+    /* 53-59 are v2.2: a FIVE-week block, where week 4 is a loading week and
+       week 5 is the deload. 53 is the guard the whole amendment is checked
+       against - any surviving `week === 4` test returns DELOAD here instead of
+       ADD, which is the one failure mode a week-literal replacement has. */
+    { n: 53, block: BLOCK_5, expect: {class: "P_PASS", outcome: "ADD", text: "85 ✓ → try 90"},
+      input: {weekSets: {3: at(85, [12, 11, 10])}, prescribed: 3, range: R8_12, step: 5,
+              feedback: {effort: "right"}, currentWeek: 4} },
+
+    { n: 54, block: BLOCK_5, expect: {class: null, outcome: "DELOAD", text: "60 — 4–5 RIR, stop early"},
+      input: {weekSets: {4: at(90, [10, 9, 8])}, prescribed: 3, range: R8_12, step: 5,
+              feedback: {effort: "right"}, currentWeek: 5} },
+
+    // 55: week 4 holds nothing, so the cascade steps back to week 3.
+    { n: 55, block: BLOCK_5, expect: {class: null, outcome: "DELOAD", text: "55 — 4–5 RIR, stop early"},
+      input: {weekSets: {3: at(85, [12, 11, 10]), 4: []}, prescribed: 3, range: R8_12, step: 5,
+              feedback: {effort: "right"}, currentWeek: 5} },
+
+    { n: 56, block: BLOCK_5, expect: {class: null, outcome: "DELOAD_ASSIST", text: "50 — 4–5 RIR, stop early"},
+      input: {weekSets: {4: at(40, [12, 11, 10])}, prescribed: 3, range: R10_15, step: 10,
+              loadSense: "assist", feedback: {effort: "right"}, currentWeek: 5} },
+
+    { n: 57, block: BLOCK_5, expect: {class: null, outcome: "DELOAD_BW", text: "deload — stop 4–5 shy of failure"},
+      input: {weekSets: {4: bw([25, 24, 22])}, prescribed: 2, range: {bottom: 0, top: 0}, step: 5,
+              loadSense: "none", feedback: {effort: "right"}, currentWeek: 5} },
+
+    /* 58 and 59 seed from a FIVE-week outgoing block. 58 walks its weeks 4..1
+       and finds 90 in week 4, a loading week there. 59 confirms week 5 is that
+       block's deload and is excluded, leaving nothing to seed. */
+    { n: 58, block: BLOCK_5,
+      seed: {block: BLOCK_5, outgoing: {1: at(80, [12]), 2: at(85, [12]), 3: at(85, [12]), 4: at(90, [12])},
+             programStart: null},
+      expect: {class: null, outcome: "NO_DATA", text: "start 90"},
+      input: {weekSets: {}, prescribed: 3, range: R8_12, step: 5,
+              feedback: {effort: "right"}, currentWeek: 1} },
+
+    { n: 59, block: BLOCK_5,
+      seed: {block: BLOCK_5, outgoing: {5: at(60, [12])}, programStart: null},
+      expect: {class: null, outcome: "NO_DATA", text: "find it — 15 reps, 3 in reserve"},
+      input: {weekSets: {}, prescribed: 3, range: R10_15, step: 5,
+              feedback: {effort: "right"}, currentWeek: 1} }
   ];
 
   window.VECTORS = VECTORS;
@@ -296,10 +354,16 @@
       let got;
       try {
         // §13.2 rows resolve their own startLoad through the seeding rule.
-        const input = v.seed
+        const blk = v.block || BLOCK_4;
+        /* §1.1: seeding walks the OUTGOING block's loading weeks on ITS length,
+           which is not necessarily this row's. A row carrying a seed says which. */
+        const base = v.seed
           ? Object.assign({}, v.input,
-              {startLoad: seedLoad(v.seed.outgoing, v.seed.programStart)})
+              {startLoad: seedLoad(v.seed.outgoing, v.seed.programStart,
+                                   (v.seed.block || BLOCK_4).deloadWeek - 1)})
           : v.input;
+        const input = Object.assign({deloadWeek: blk.deloadWeek,
+                                     rir: blk.rirs[base.currentWeek]}, base);
         got = suggestLoad(input);
       }
       catch (e) { return {n: v.n, ok: false, detail: `threw ${e.message}`}; }
@@ -313,10 +377,32 @@
     results.forEach(r => console.log(
       `${r.ok ? "PASS" : "FAIL"} #${String(r.n).padStart(2)}${r.ok ? "" : "  " + r.detail}`));
 
+    /* §13.7, outside the vector table: validation is not suggestLoad. Every
+       shipped PROGRAM must be valid, and a deliberately broken one must report
+       exactly the error §13.7 specifies. */
+    const progChecks = [];
+    if (typeof validateProgram === "function" && typeof PROGRAMS === "object") {
+      Object.entries(PROGRAMS).forEach(([id, prog]) => {
+        const errs = validateProgram(prog, id);
+        progChecks.push({name: `PROGRAMS.${id} valid`, ok: errs.length === 0, detail: errs.join(" | ")});
+      });
+      const broken = {weeks: [{n:1},{n:2},{n:3},{n:4},{n:5}],
+                      days: [{key: "mon", ex: [{id: "inc_db_press", sets: [3, 3, 3, 2]}]}]};
+      const errs = validateProgram(broken, "scratch5");
+      const want = "scratch5 mon inc_db_press: 4 set counts for a 5-week block";
+      progChecks.push({name: "short set array reports §13.7 text",
+                       ok: errs.length === 1 && errs[0] === want,
+                       detail: `got ${JSON.stringify(errs)}`});
+    }
+    progChecks.forEach(c => console.log(`${c.ok ? "PASS" : "FAIL"} §13.7 ${c.name}${c.ok ? "" : "  " + c.detail}`));
+    const progFailed = progChecks.filter(c => !c.ok);
+
     const failed = results.filter(r => !r.ok).map(r => r.n);
     const nulls = VECTORS.filter(v => v.expect.class === null).length;
     console.log(`${results.length - failed.length}/${results.length} passed · ` +
-                `${nulls} rows assert class: null`);
-    return {total: results.length, passed: results.length - failed.length, failed, results};
+                `${nulls} rows assert class: null · ` +
+                `§13.7 ${progChecks.length - progFailed.length}/${progChecks.length}`);
+    return {total: results.length, passed: results.length - failed.length, failed, results,
+            programChecks: progChecks, programFailed: progFailed.map(c => c.name)};
   };
 })();

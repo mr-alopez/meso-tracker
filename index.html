@@ -476,6 +476,8 @@
     letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
 
   /* ---- progression suggestion + feedback ---- */
+  .progerr{font-family:var(--mono);font-size:15px;color:var(--deload);
+    border:1px solid var(--deload);border-radius:2px;padding:11px;margin:4px 0 2px}
   .fbrow{display:flex;align-items:center;gap:5px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line-2)}
   .fb{appearance:none;border:none;background:var(--card-2);color:var(--ink-3);
     font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
@@ -1157,7 +1159,14 @@ function createBlock(newId, programId){
   if(STORE.mesos[newId])   return {ok:false, why:"a block with that id already exists"};
   if(!PROGRAMS[programId]) return {ok:false, why:"no PROGRAM has been authored for that block"};
   const prog = PROGRAMS[programId];
+  // §13.7: refused, and nothing is created. The whole error list, not the first.
+  const errs = validateProgram(prog, programId);
+  if(errs.length) return {ok:false, why:"that PROGRAM is not valid", errors:errs};
   const from = STORE.mesos[activeMeso()];
+  /* §13.2 walks the OUTGOING block's loading weeks on ITS OWN length, which is
+     not necessarily this one's. */
+  const fromProg = from && (PROGRAMS[from.program] || null);
+  const fromLast = fromProg ? lastLoadingWeekOf(fromProg) : 0;
   const blk  = freshBlock(programId);
 
   // §13.2. Sets key by week|day|exerciseId, and the spec seeds on exercise id
@@ -1173,20 +1182,19 @@ function createBlock(newId, programId){
   Object.keys(named).forEach(id => {
     if(named[id] != null) return;               // PROGRAM named one; nothing to seed
     const weeks = {};
-    for(let w = 1; w <= 3; w++) weeks[w] = byWeekEx[`${w}|${id}`] || [];
-    const seed = seedLoad(weeks, null);
+    for(let w = 1; w <= fromLast; w++) weeks[w] = byWeekEx[`${w}|${id}`] || [];
+    const seed = seedLoad(weeks, null, fromLast);
     if(seed != null) blk.seeds[id] = seed;
   });
 
-  // §13.4. order is the only thing that carries: keep the relative order of ids
-  // the new PROGRAM still contains, then append its new ones in PROGRAM order.
-  prog.days.forEach(d => {
-    const progIds = d.ex.map(e => e.id);
-    const prev = ((from && from.order) || {})[d.key] || [];
-    const kept = prev.filter(id => progIds.includes(id));
-    const merged = [...kept, ...progIds.filter(id => !kept.includes(id))];
-    if(merged.join("|") !== progIds.join("|")) blk.order[d.key] = merged;
-  });
+  /* §13.4 as of v2.2: order does NOT carry. It used to, on the reading that it
+     was a durable preference. Meso 01 said otherwise - its Monday order put the
+     block's priority lift third, behind two exercises working the same muscles,
+     and carrying that forward would have undone the next block's priority-first
+     design. A reorder mid-block is usually a response to that session (a busy
+     machine, a missing bench) and persists only because the app stores the
+     latest arrangement. Same reasoning as swaps. blk.order is left empty, so
+     the new block opens in PROGRAM order. */
 
   STORE.mesos[newId] = blk;
   STORE.settings.activeMeso = newId;
@@ -1194,8 +1202,7 @@ function createBlock(newId, programId){
   W = 1; D = PROGRAM.days[0].key;
   STORE.settings.week = W; STORE.settings.day = D;
   save();
-  return {ok:true, id:newId, seeded:Object.keys(blk.seeds).length,
-          carriedOrder:Object.keys(blk.order).length};
+  return {ok:true, id:newId, seeded:Object.keys(blk.seeds).length};
 }
 
 /* §13.6. Viewing a closed block never writes to it. The disabled attribute on
@@ -1213,6 +1220,37 @@ function bindBlock(id){
   return true;
 }
 
+/* §1.1. Block length is a property of a PROGRAM, never global. The deload is
+   the LAST week, by position rather than by a flag, so there is one source of
+   truth about which week it is.
+
+   Seeding and the deload cascade take the block whose weeks they are walking,
+   not the active one: seeding Meso 02 from Meso 01 walks 3..1, seeding Meso 03
+   from a five-week Meso 02 walks 4..1. Every one of these takes a program
+   argument for that reason - there is no "current" block length. */
+const blockLengthOf     = prog => prog.weeks.length;
+const deloadWeekOf      = prog => prog.weeks.length;
+const lastLoadingWeekOf = prog => prog.weeks.length - 1;
+
+/* §13.7. Returns the list of errors; empty means valid. Never pads, truncates
+   or defaults a mismatched array - a set array that disagrees with the block
+   is an authoring mistake, and the only safe thing to do with it is say so.
+   Before this existed, ex.sets[W-1] on a short array gave undefined, which
+   both the row loop and Array.from read as zero, so the exercise rendered no
+   sets at all and said nothing. */
+function validateProgram(prog, id){
+  const name = id || prog.id || "PROGRAM";
+  const errs = [];
+  const n = blockLengthOf(prog);
+  if(n < 2) errs.push(`${name}: needs at least one loading week and a deload`);
+  prog.days.forEach(d => d.ex.forEach(e => {
+    if(!LIB_EX.has(e.id)) errs.push(`${name} ${d.key}: unknown exercise ${e.id}`);
+    if(e.sets.length !== n)
+      errs.push(`${name} ${d.key} ${e.id}: ${e.sets.length} set counts for a ${n}-week block`);
+  }));
+  return errs;
+}
+
 /* ---- load progression rule engine ----
    Encodes load-progression-spec.md verbatim — SPEC_VERSION names which
    revision. Pure function: plain data
@@ -1223,8 +1261,6 @@ function bindBlock(id){
    `weekSets` maps week number → that week's logged sets; the suggestion for
    week N reads week N−1, and §7/§7.1's deload cascades walk weeks 3, 2, 1.
    `step` must already include any per-exercise override. */
-const WEEK_RIR_TEXT = {1:"3", 2:"2", 3:"1", 4:"4–5"};
-
 /* §13.2 seeding. Pure: the outgoing block's weeks 1-3 for ONE exercise id,
    plus whatever the new PROGRAM names as that exercise's start.
 
@@ -1236,9 +1272,9 @@ const WEEK_RIR_TEXT = {1:"3", 2:"2", 3:"1", 4:"4–5"};
    A mixed-load week has no `workingLoad` by §1's definition, so it yields no
    seed rather than a guess. v1.9 does not cover that case; this is the literal
    reading, not an invented rule. */
-function seedLoad(outgoingWeekSets, programStart){
+function seedLoad(outgoingWeekSets, programStart, outgoingLastLoadingWeek){
   if(programStart !== null && programStart !== undefined) return programStart;
-  for(let w = 3; w >= 1; w--){
+  for(let w = outgoingLastLoadingWeek; w >= 1; w--){
     const q = ((outgoingWeekSets && outgoingWeekSets[w]) || [])
       .filter(s => typeof s.reps === "number" && s.reps > 0);
     if(!q.length) continue;
@@ -1262,8 +1298,8 @@ function referenceWeek(weekSets, currentWeek){
   return null;
 }
 
-function suggestLoad({weekSets, prescribed, range, step, rack, loadSense, feedback, currentWeek, startLoad, rir}){
-  rir = rir ?? WEEK_RIR_TEXT[currentWeek] ?? "";
+function suggestLoad({weekSets, prescribed, range, step, rack, loadSense, feedback, currentWeek, startLoad, rir, deloadWeek}){
+  rir = rir ?? "";                                           // §2.2: the caller reads it from PROGRAM
   const sense  = loadSense ?? "weight";                      // §1: absent → "weight"
   const effort = (feedback && feedback.effort) || "right";   // §1: absent → "right"
   const pain   = !!(feedback && feedback.pain);
@@ -1299,7 +1335,7 @@ function suggestLoad({weekSets, prescribed, range, step, rack, loadSense, feedba
 
   // §7 / §7.1 — one cascade, two terminal operations.
   const deloadBase = () => {
-    for(const w of [3, 2, 1]){
+    for(let w = deloadWeek - 1; w >= 1; w--){          // §7: lastLoadingWeek down to 1
       const l = oneLoad(qual(w));
       if(l !== null) return l;
     }
@@ -1309,7 +1345,7 @@ function suggestLoad({weekSets, prescribed, range, step, rack, loadSense, feedba
   // ---- §5 dispatch: load sense first, before any data-shape rule ----
 
   if(sense === "none"){                                      // §6.1
-    if(currentWeek === 4)  return ret("DELOAD_BW", "deload — stop 4–5 shy of failure");
+    if(currentWeek === deloadWeek) return ret("DELOAD_BW", "deload — stop 4–5 shy of failure");
     if(pain)               return ret("PAIN_BW", "pain flagged — go easier or swap the movement");
     if(n === 0)            return ret("NO_DATA_BW", "2 shy of failure");
     if(n < prescribed)     return ret("INCOMPLETE_BW", `beat ${last.reps} — ${n} of ${prescribed} sets logged`);
@@ -1317,7 +1353,7 @@ function suggestLoad({weekSets, prescribed, range, step, rack, loadSense, feedba
   }
 
   if(sense === "assist"){                                    // §6.2
-    if(currentWeek === 4){
+    if(currentWeek === deloadWeek){
       const base = deloadBase();
       if(base === null)    return ret("DELOAD_ASSIST", "deload — more assistance, stop early");
       const dl = base + step;                                // §7.1
@@ -1330,7 +1366,7 @@ function suggestLoad({weekSets, prescribed, range, step, rack, loadSense, feedba
   }
 
   if(sense === "weight"){                                    // §6.3
-    if(currentWeek === 4){
+    if(currentWeek === deloadWeek){
       const base = deloadBase();
       if(base === null)    return ret("DELOAD", `about two-thirds of your usual — ${rir} RIR, stop early`);
       const target = base * 0.70;                                        // §7
@@ -1487,7 +1523,8 @@ function suggestFor(ex){
     feedback: ref ? (LOG.feedback[`${ref}|${D}|${ex.id}`] || null) : null,
     currentWeek: W,
     startLoad: ex.start,
-    rir: weekObj().rir
+    rir: weekObj().rir,
+    deloadWeek: deloadWeekOf(PROGRAM)
   });
 }
 
@@ -1532,7 +1569,7 @@ function rememberPlace(){
 
 function renderHeader(){
   $("weekSeg").innerHTML = PROGRAM.weeks.map(w=>
-    `<button data-w="${w.n}" class="${w.n===4?'dl':''}" aria-pressed="${w.n===W}">Wk ${w.n}</button>`).join("");
+    `<button data-w="${w.n}" class="${w.n===deloadWeekOf(PROGRAM)?'dl':''}" aria-pressed="${w.n===W}">Wk ${w.n}</button>`).join("");
   $("daySeg").innerHTML = PROGRAM.days.map(d=>
     `<button data-d="${d.key}" aria-pressed="${d.key===D}"${
       dayIsSkipped(W, d.key) ? ' class="skipped"' : ""}>${d.label}</button>`).join("");
@@ -1543,7 +1580,11 @@ function renderHeader(){
 
 function renderDay(){
   $("days").innerHTML = exList().map((ex,ei)=>{
-    const n = ex.sets[W-1];
+    /* §13.7's third surface. Block creation and the harness should both have
+       caught this already; if one ever does not, the card says so rather than
+       drawing nothing - which is exactly what it used to do, silently. */
+    const setsOk = ex.sets.length === blockLengthOf(PROGRAM);
+    const n = setsOk ? ex.sets[W-1] : 0;
     // §13.6: fields in a closed block are disabled, not merely ignored.
     /* cue-policy.md §2: the push-up's "leave the weight field empty" was the
        interface asking to be fixed. loadSense "none" already means there is no
@@ -1626,7 +1667,7 @@ function renderDay(){
       </div>
       ${ex.cue?`<details class="cuewrap" ${cueOpen?"open":""}><summary>How to do it</summary><div class="cue">${ex.cue}</div></details>`:""}
       <div class="hdr"><div></div><div>Weight</div><div>Reps</div><div></div></div>
-      ${rows}
+      ${setsOk ? rows : `<div class="progerr">${blockLengthOf(PROGRAM)}-week block, ${ex.sets.length} set counts — fix the PROGRAM</div>`}
       <div class="fbrow">
         ${["easy","right","brutal"].map(o=>
           `<button class="fb" data-fb="${o}" data-e="${ei}" aria-pressed="${fb.effort===o}">${o}</button>`).join("")}
