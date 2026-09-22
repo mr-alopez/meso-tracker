@@ -1677,8 +1677,8 @@ function renderDay(){
       <div class="hdr"><div></div><div>Weight</div><div>Reps</div><div></div></div>
       ${setsOk ? rows : `<div class="progerr">${blockLengthOf(PROGRAM)}-week block, ${ex.sets.length} set counts — fix the PROGRAM</div>`}
       <div class="fbrow">
-        ${["easy","right","brutal"].map(o=>
-          `<button class="fb" data-fb="${o}" data-e="${ei}" aria-pressed="${fb.effort===o}">${o}</button>`).join("")}
+        ${Object.entries(FELT_LABEL).map(([o, label])=>
+          `<button class="fb" data-fb="${o}" data-e="${ei}" aria-pressed="${fb.effort===o}">${label}</button>`).join("")}
         <span class="fbsep"></span>
         <button class="fb fbpain" data-fb="pain" data-e="${ei}" aria-pressed="${!!fb.pain}">pain</button>
       </div>
@@ -1773,6 +1773,14 @@ const todayKey = () => {
    Console-callable and deliberately not wired to a button yet. Per the design
    note's own implementation order, the format IS the feature: it has to read
    well pasted by hand before any plumbing is worth writing. */
+/* §1: the stored values are easy / right / brutal and every rule reads those.
+   Only the labels changed, and they changed because the question is about
+   OVERSHOOT AGAINST THE RIR TARGET rather than about how hard the set was.
+   Those are different questions, and "brutal" asked the second one - a set can
+   be both hard and correctly loaded, which is why it went under-used. No
+   migration: nothing stored moves. */
+const FELT_LABEL = {easy: "Too light", right: "Just right", brutal: "Too heavy"};
+
 /* A note is the one string on a card the user types himself, and it is now
    rendered as markup rather than parked inside a textarea. */
 const esc = s => String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
