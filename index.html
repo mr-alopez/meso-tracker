@@ -517,8 +517,9 @@
   .vol summary::after{content:" +";color:var(--ink-3)}
   .vol[open] summary::after{content:" –"}
   .voltbl{display:grid;grid-template-columns:1fr auto auto auto;gap:2px 10px;font-family:var(--mono);font-size:13px;padding-bottom:14px}
-  /* A muscle with no core sets vanishes entirely when the optional day is
-     missed, which is the failure this table exists to make visible. */
+  /* Flagged only where core is 0 AND total is not: that muscle vanishes when
+     the optional day is missed, which is the failure this table exists to show.
+     A muscle at 0/0 is a deliberate exclusion, not a risk, and is left plain. */
   .voltbl .nocore{color:var(--deload)}
   .voltbl div{padding:3px 0;border-bottom:1px solid var(--line-2)}
   .voltbl .h{color:var(--ink-3);font-size:13px;letter-spacing:.1em;text-transform:uppercase}
@@ -1712,21 +1713,28 @@ function markTallCards(){
    number that never happened. A core figure of zero says a muscle disappears
    whenever the optional day is missed. */
 function renderVolume(){
+  /* Every muscle the library knows, including those this block does not train.
+     A muscle at 0/0 is a deliberate exclusion - Meso 02 drops overhead and
+     lateral work pending a shoulder assessment - and the design notes list it
+     as a row for exactly that reason. Leaving it out would make a decision look
+     like an oversight. */
   const core = {}, total = {};
+  LIBRARY.exercises.forEach(e => { core[e.muscle] = 0; total[e.muscle] = 0; });
   PROGRAM.days.forEach(d => d.ex.forEach(ex => {
     const m = effectiveLib(d.key, ex.id).muscle;
     const n = ex.sets[W-1] || 0;
     total[m] = (total[m] || 0) + n;
     if(!d.optional) core[m] = (core[m] || 0) + n;
   }));
-  const entries = Object.entries(total).sort((a,b) => b[1] - a[1]);
+  // Trained muscles by volume, then the untrained ones alphabetically.
+  const entries = Object.entries(total).sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   const max = Math.max(...entries.map(e => e[1]), 1);
   $("volTbl").innerHTML =
     `<div class="h">Muscle</div><div class="h">Core</div><div class="h">Total</div><div class="h"></div>` +
     entries.map(([m, v]) => {
       const c = core[m] || 0;
       return `<div>${m}</div>
-      <div style="text-align:right" class="${c === 0 ? "nocore" : ""}">${c}</div>
+      <div style="text-align:right" class="${c === 0 && v > 0 ? "nocore" : ""}">${c}</div>
       <div style="text-align:right">${v}</div>
       <div><span class="bar" style="width:${Math.round(v/max*56)}px"></span></div>`;
     }).join("");
@@ -1793,9 +1801,10 @@ function sessionReport(question){
   const out = [
     `${mesoName} · Week ${W} · ${day.label} (${day.focus}) · target ${weekObj().rir} RIR`, "",
     "How to read this: sets are weight×reps, working sets only. FELT is my own",
-    "effort tap for that exercise — easy, right, or brutal, relative to the target",
-    "RIR. PAIN means a joint complaint, not muscular difficulty. NEXT is what my",
-    "tracker's progression rule suggests for next week; I can override it.", ""];
+    "effort tap for that exercise — too light, just right, or too heavy, relative",
+    "to the target RIR. PAIN means a joint complaint, not muscular difficulty.",
+    "NEXT is what my tracker's progression rule suggests for next week; I can",
+    "override it.", ""];
 
   exList().forEach(ex => {
     // Trimmed: notes are typed on a phone and carry a trailing space more often
@@ -1831,7 +1840,9 @@ function sessionReport(question){
     const fb = LOG.feedback[`${W}|${D}|${ex.id}`] || {};
     // §1 reads an absent effort as "right" for evaluation only, never backfilled -
     // so the report must not claim he tapped one when he did not.
-    const felt = fb.effort ? ` · felt ${fb.effort}` : "";
+    // §1: stored values are easy/right/brutal; the report shows the labels, so a
+    // reader sees the words he was answering rather than the storage vocabulary.
+    const felt = fb.effort ? ` · felt ${FELT_LABEL[fb.effort].toLowerCase()}` : "";
     const pain = fb.pain ? " · PAIN" : "";
     const unit = ex.unit === "per DB" ? " per DB" : "";
     out.push(`  ${sets.join(" ")}${unit}${felt}${pain}`);
