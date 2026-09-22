@@ -1,5 +1,9 @@
 # Load Progression Spec — meso-tracker
 
+Version 2.1a · 22 Sep 2026 — first completed line of the §2 equipment audit: the EZ bars
+carry no 5 lb increment, so four exercises take `step: 10` over the Barbell default. Library
+data and documentation only; no engine change.
+
 Version 2.1 · 5 Sep 2026 — records the Machine Flye increment correction, rules on vector 7,
 and adds a documentation rule for measured claims, which is the general form of the defect the
 correction exposed. No engine change: library data and documentation only.
@@ -212,6 +216,23 @@ contradicts the category default, add a `step` override carrying the same note.
 **This should precede Meso 02's PROGRAM.** A cable stack that turns out to be 5 lb rather
 than 10 changes the gate arithmetic for that exercise, which changes whether it can
 progress, which is an input to choosing exercises and set counts for the next block.
+
+#### Verified 22 Sep 2026 — EZ bar, step 10
+
+**How it was established:** observed in use during Meso 01 week 3. The EZ bars carry no 5 lb
+increment, and the curl went 40 → 50 rather than 40 → 45, because 45 was not available to
+load. Reported by the lifter who loaded it.
+
+`step: 10` is therefore set on `ez_preacher_curl`, `ez_curl_wide`, `ez_curl_narrow` and
+`skull_crusher`, overriding the Barbell default of +5. Two of the four are in the Meso 01
+PROGRAM; all four are in the library and eligible for substitution, so all four carry it.
+
+**Open, and flagged for the next visit.** A scalar `step` asserts evenly spaced loads. If
+these are *fixed-weight* EZ bars rather than plate-loaded ones, they are a rack in the sense
+below — a set of real loads, possibly unevenly spaced — and should be modelled with a `rack`
+rather than a flat step, exactly as the dumbbells are. A flat 10 is the conservative reading
+of one observation, not a measurement of the whole range, and it should not be treated as
+one until the rack is either confirmed absent or written down.
 
 **Non-uniform racks.** A single `step` per exercise assumes evenly spaced loads. The
 dumbbell rack is not evenly spaced: it runs 10, 12, 15, 20, 25 and upward in fives, so the
