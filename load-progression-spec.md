@@ -1,5 +1,9 @@
 # Load Progression Spec — meso-tracker
 
+Version 2.3 · 22 Sep 2026 — closes the §2 equipment audit and, with it, the §4 survey
+placeholder. No rule changes and no data changes: every category default was confirmed
+correct at the equipment, so no new `step` override was needed.
+
 Version 2.2 · 22 Sep 2026 — generalises block length. `blockLength` is per block, read from
 that block's PROGRAM; the deload is the final week, by position. Adds §13.7 PROGRAM validation,
 replaces §13.4's order rule, and corrects v2.1's attribution on vector 7. Behaviour-identical
@@ -244,6 +248,28 @@ contradicts the category default, add a `step` override carrying the same note.
 than 10 changes the gate arithmetic for that exercise, which changes whether it can
 progress, which is an input to choosing exercises and set counts for the next block.
 
+#### Verified 22 Sep 2026 — the six category defaults, all confirmed
+
+**How they were established:** checked at the equipment, per machine rather than per exercise,
+since several exercises share a stack. For each, two questions — the gap between adjacent
+plates, and whether any add-on or half-pin permits a finer step.
+
+| Checked | Assumed | Result | Exercises riding on it |
+|---|---|---|---|
+| Cable columns | +10 | **Confirmed** | Rope facepull, rope pushdown, low-to-high flye, rear delt flye, pull-through, cable curl |
+| Lat pulldown stack | +10 | **Confirmed** | Neutral-grip pulldown |
+| Machine flye | +10 | **Confirmed** | Machine flye |
+| Leg extension | +10 | **Confirmed** | Leg extension |
+| Seated leg curl | +10 | **Confirmed** | Seated leg curl |
+| Barbell plates, both gyms | +5 | **Confirmed** — 2.5 lb pairs exist | Squat, good morning |
+
+**No override was added, because none was needed.** That is the outcome the audit existed to
+establish rather than assume: before it, every one of these rows was a category default nobody
+had measured, which is exactly the footing that made `step: 2.5` on the machine flye wrong.
+They are now measured and they happen to agree.
+
+The dumbbell rack was already modelled from observation (v1.7) and was not re-checked.
+
 #### Verified 22 Sep 2026 — EZ bar, step 10
 
 **How it was established:** observed in use during Meso 01 week 3. The EZ bars carry no 5 lb
@@ -347,6 +373,47 @@ The gate asks a single question: **after taking the smallest available increment
 still a productive working set for this slot?** It does not ask whether the athlete retains a
 buffer, and it does not require the prescribed range to be exceeded.
 
+### Survey — 22 Sep 2026
+
+**PROGRAM:** Meso 01, as shipped. **Increments:** as of v2.3, every one measured at the
+equipment. **Gate versions:** v1.9 computed from its own formula, since the engine no longer
+runs it; v2.0 cross-checked against the live engine, which agreed on every row.
+
+**Loaded** means: not bodyweight, a numeric rep range, and a PROGRAM `start` value. Six of the
+nineteen exercises fail that test — one bodyweight, five with no `start` — leaving **13**.
+
+**Each evaluated at** its PROGRAM start load, hitting the top of its range on every set, week 2
+at 2 RIR. `stepUp` resolved as §2 resolves it: from the rack where one applies, otherwise the
+scalar step.
+
+| Exercise | Load | Step | Range | v1.9 | v2.0 |
+|---|---|---|---|---|---|
+| Incline Dumbbell Press | 25 | +5 | 8–12 | `P_GATED` needs 15 | `P_PASS` |
+| Dumbbell Shoulder Press | 25 | +5 | 8–12 | `P_GATED` needs 15 | `P_PASS` |
+| Machine Flye | 70 | +10 | 10–15 | `P_PASS` | `P_PASS` |
+| Cable Triceps Pushdown | 60 | +10 | 10–15 | `P_GATED` needs 16 | `P_PASS` |
+| Dumbbell Lateral Raise | 10 | +2 | 12–20 | `P_PASS` | `P_PASS` |
+| Cable Rope Facepull | 50 | +10 | 12–20 | `P_PASS` | `P_PASS` |
+| Barbell Squat | 85 | +5 | 8–12 | `P_PASS` | `P_PASS` |
+| EZ Bar Preacher Curl | 45 | +10 | 10–15 | `P_GATED` needs 18 | `P_PASS` |
+| Dumbbell Curl (Incline) | 15 | +5 | 10–15 | `P_UNPROGRESSABLE` | `P_GATED` |
+| Leg Extension | 45 | +10 | 15–20 | `P_GATED` needs 23 | `P_PASS` |
+| Dumbbell Upright Row | 20 | +5 | 10–15 | `P_GATED` needs 19 | `P_PASS` |
+| Barbell Good Morning | 65 | +5 | 10–12 | `P_GATED` needs 13 | `P_PASS` |
+| EZ Bar Curl (Wide) | 40 | +10 | 10–15 | `P_GATED` needs 19 | `P_PASS` |
+
+**v1.9 held 9 of 13. v2.0 holds 1.** Every "needs" figure above is past the top of that
+exercise's own range — which is the defect, stated as a count.
+
+**This cannot be reconciled with the "six of fourteen" it replaces**, and no attempt is made
+to. That figure was taken before the machine flye lost its 2.5 lb override and before the EZ
+bars gained their 10 lb one, so it was measuring different equipment; its denominator of 14
+also implies a different "loaded" test from the one stated here. Both are honest measurements
+of different things. This is why §12 now requires the inputs.
+
+The one exercise v2.0 still holds is the incline dumbbell curl at 15 with a 5 lb step — a 33%
+jump, which is genuinely large, and it is not in Meso 02.
+
 `landingFloor` is half the range bottom because rep ranges differ by slot for reasons that
 survive a load increase. A high-rep lateral raise slot exists because heavy lateral raises stop
 being lateral raises; an 8–12 press slot has no such constraint. A proportional floor respects
@@ -355,12 +422,8 @@ that, where a fixed rep offset would not.
 **Why the v1.1 gate was replaced.** The arithmetic was never the defect —
 `ceil(jumpPct / 0.03)` tracks a standard rep-max relationship closely. The premise was. Requiring
 set 1 to clear the range *bottom* after the jump means holding a large rep buffer *before* it,
-and on a coarse increment that buffer exceeds the top of the range. Measured across the PROGRAM
-at v1.9, loaded exercises demanded reps past the **top** before the next available load
-unlocked — *count pending re-measurement, see §12; the original figure came from a survey whose
-method was not recorded and must not be restated until the survey is re-run.* The argument does
-not depend on the count: it rests on the gate demanding reps past the top of a range at all,
-which one worked example establishes. The top of a rep range is the signal to add load — a
+and on a coarse increment that buffer exceeds the top of the range, as the survey below
+measures. The top of a rep range is the signal to add load — a
 rule that requires exceeding it contradicts the definition of the quantity it reads. Double
 progression has always run the other way: reach the top, add load, watch reps fall, climb back.
 
@@ -740,13 +803,16 @@ between runs and neither figure can be reconciled after the fact.
 
 A count in prose looks like a fact and is unfalsifiable a week later.
 
-### §4 rationale — pending re-measurement
+### §4 rationale — re-measured 22 Sep 2026
 
-§4's count is a placeholder until the survey is re-run and recorded per the rule above.
-**Do not restate either figure.** When re-running, record explicitly: which exercises count
-as "loaded" (the original appears to have counted the 14 of 18 carrying a PROGRAM start
-load, but this is reconstruction), what load each was evaluated at, and the spec version of
-the gate.
+Done, and recorded in §4 as a dated table with its inputs: the "loaded" test, the load each
+exercise was evaluated at, both gate versions, and the per-row results. **v1.9 held 9 of 13;
+v2.0 holds 1.**
+
+It was deliberately not run until the §2 equipment audit closed, because a survey is gate
+arithmetic and gate arithmetic reads `step`. Two rows moved while the audit was in progress.
+Recording a count before the inputs were settled is the failure this rule exists to prevent,
+and it would have reproduced it exactly.
 
 Every vector must be deterministic. Where an input omits a value that any rule in
 the evaluation order reads — including `prescribed` — the vector is defective and
