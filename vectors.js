@@ -10,15 +10,11 @@
 
    load-progression-spec.md §12 is the source of truth.
 
-   KNOWN, DELIBERATE EXCEPTION: the spec is at v2.0 and this file is at v1.9,
-   because the engine is. §4 v2.0 is merged into the document but ships with
-   §13, so rows 1, 4 and 33 here still carry their v1.9 expectations and rows
-   47-52 are absent. Derived values for when it ships:
-       1  -> P_PASS  ADD        "25 ✓ → try 30"
-       4  -> P_GATED HOLD_GATE  "repeat 10 — need 23+ before 15"
-       33 -> P_PASS  ADD        "12 ✓ → try 15"
-   Until then 46/46 passing means "the engine matches the version it claims to
-   implement", which is the useful thing for this file to assert. This file transcribes
+   §4 v2.0 shipped 22 Sep 2026 and this file is no longer diverged: rows 1, 4
+   and 33 carry their v2.0 expectations and rows 47-52 are present, for 52 in
+   all. Each of the nine affected rows was derived by hand from §4's landing
+   check before the engine was asked, so a pass means the engine agrees with the
+   spec rather than with itself. This file transcribes
    that table; where they disagree, the table is correct and this file is
    wrong. Every row asserts class, outcome and exact text — including
    `class: null` on the short-circuit rows, which is what catches
@@ -31,11 +27,13 @@
   const R8_12 = {bottom: 8,  top: 12};
   const R10_15 = {bottom: 10, top: 15};
   const R12_20 = {bottom: 12, top: 20};
+  const R15_20 = {bottom: 15, top: 20};
+  const R10_12 = {bottom: 10, top: 12};
   const NO_RANGE = {bottom: 0, top: 0};   // sense "none" never reads the range
   const RACK = [10, 12, 15, 20, 25, 30];  // the gym's dumbbells: fives, except the 12
 
   const VECTORS = [
-    { n: 1, expect: {class: "P_GATED", outcome: "HOLD_GATE", text: "repeat 25 — need 15+ before 30"},
+    { n: 1, expect: {class: "P_PASS", outcome: "ADD", text: "25 ✓ → try 30"},
       input: {weekSets: {1: at(25, [12, 11, 9])}, prescribed: 3, range: R8_12, step: 5,
               feedback: {effort: "right"}, currentWeek: 2} },
 
@@ -47,8 +45,7 @@
       input: {weekSets: {1: at(85, [12, 10, 7])}, prescribed: 3, range: R8_12, step: 5,
               feedback: {effort: "right"}, currentWeek: 2} },
 
-    { n: 4, expect: {class: "P_UNPROGRESSABLE", outcome: "HOLD",
-                     text: "5 is too big a jump here — hold 10 and add reps"},
+    { n: 4, expect: {class: "P_GATED", outcome: "HOLD_GATE", text: "repeat 10 — need 23+ before 15"},
       input: {weekSets: {1: at(10, [20, 18, 16])}, prescribed: 3, range: R12_20, step: 5,
               feedback: {effort: "easy"}, currentWeek: 2} },
 
@@ -171,7 +168,7 @@
       input: {weekSets: {1: at(10, [20, 18, 16])}, prescribed: 3, range: R12_20, step: 5,
               rack: RACK, feedback: {effort: "easy"}, currentWeek: 2} },
 
-    { n: 33, expect: {class: "P_GATED", outcome: "HOLD_GATE", text: "repeat 12 — need 21+ before 15"},
+    { n: 33, expect: {class: "P_PASS", outcome: "ADD", text: "12 ✓ → try 15"},
       input: {weekSets: {1: at(12, [20, 18, 16])}, prescribed: 3, range: R12_20, step: 5,
               rack: RACK, feedback: {effort: "right"}, currentWeek: 2} },
 
@@ -257,6 +254,37 @@
        over-applies it returns NO_DATA here instead of progressing. */
     { n: 46, expect: {class: "P_PASS", outcome: "ADD", text: "90 ✓ → try 95"},
       input: {weekSets: {1: at(90, [12, 11, 10])}, prescribed: 3, range: R8_12, step: 5,
+              feedback: {effort: "right"}, currentWeek: 2} },
+
+    /* 47-50 are the survey cases and the point of §4 v2.0: a perfect week under
+       the prescription must progress. All four were held by the v1.9 gate. */
+    { n: 47, expect: {class: "P_PASS", outcome: "ADD", text: "25 ✓ → try 30"},
+      input: {weekSets: {1: at(25, [12, 11, 10])}, prescribed: 3, range: R8_12, step: 5,
+              feedback: {effort: "right"}, currentWeek: 2} },
+
+    { n: 48, expect: {class: "P_PASS", outcome: "ADD", text: "20 ✓ → try 25"},
+      input: {weekSets: {1: at(20, [15, 13, 12])}, prescribed: 3, range: R10_15, step: 5,
+              feedback: {effort: "right"}, currentWeek: 2} },
+
+    { n: 49, expect: {class: "P_PASS", outcome: "ADD", text: "45 ✓ → try 55"},
+      input: {weekSets: {1: at(45, [20, 18, 16])}, prescribed: 3, range: R15_20, step: 10,
+              feedback: {effort: "right"}, currentWeek: 2} },
+
+    { n: 50, expect: {class: "P_PASS", outcome: "ADD", text: "65 ✓ → try 70"},
+      input: {weekSets: {1: at(65, [12, 11, 10])}, prescribed: 3, range: R10_12, step: 5,
+              feedback: {effort: "right"}, currentWeek: 2} },
+
+    /* 51 and 52 hold the floor: the gate still refuses a jump that lands set 1
+       below half the range bottom, and still separates "not yet" from "never".
+       51 is row 4 at effort `right`, which must not change the result - the
+       gate is effort-independent across easy and right. */
+    { n: 51, expect: {class: "P_GATED", outcome: "HOLD_GATE", text: "repeat 10 — need 23+ before 15"},
+      input: {weekSets: {1: at(10, [20, 18, 16])}, prescribed: 3, range: R12_20, step: 5,
+              feedback: {effort: "right"}, currentWeek: 2} },
+
+    { n: 52, expect: {class: "P_UNPROGRESSABLE", outcome: "HOLD",
+                     text: "10 is too big a jump here — hold 10 and add reps"},
+      input: {weekSets: {1: at(10, [20, 18, 16])}, prescribed: 3, range: R12_20, step: 10,
               feedback: {effort: "right"}, currentWeek: 2} }
   ];
 

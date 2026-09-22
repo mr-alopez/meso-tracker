@@ -924,7 +924,7 @@ function resolveEx(p, dayKey){
    Bump SCHEMA_VERSION and add MIGRATIONS[oldVersion] when the shape changes. */
 const STORE_KEY = "meso-tracker";
 const SCHEMA_VERSION = 14;
-const SPEC_VERSION = "1.9";      // load-progression-spec.md; bump both together
+const SPEC_VERSION = "2.1a";     // load-progression-spec.md; bump both together
 const FIRST_MESO = "meso01";
 // The block being viewed. Equal to settings.activeMeso except while looking at
 // a closed block, which sec.13.6 makes read-only rather than merely non-default.
@@ -1362,24 +1362,25 @@ function suggestLoad({weekSets, prescribed, range, step, rack, loadSense, feedba
   if(proportional){
     const jumpPct = stepUp / load;
     if(cls === "P_PASS"){
-      /* This is §4 as of v1.9 - a rep-buffer requirement. Spec v2.0 REPLACES it
-         with a landing check and is already merged into the document; it is not
-         implemented here on purpose. A rule that newly permits 20% load jumps
-         must not take effect in week 3 of a block at 1 RIR, so it ships with
-         §13's block creation. Deferring costs nothing: week 4 makes no
-         progression suggestions and week 1 of a new block is NO_DATA, so v2.0
-         first changes a suggestion in Meso 02 week 2 either way.
+      /* §4 v2.0, shipped at the Meso 01/02 boundary. A LANDING CHECK, not a
+         rep buffer: the question is whether set 1 is still a productive working
+         set after the smallest available increment, not whether a buffer was
+         held before it. The v1.9 rule asked the latter, which on a coarse
+         increment demanded reps past the TOP of the range - contradicting the
+         signal it was reading, since reaching the top is what says add load.
 
-         When it ships, this becomes:
-             estimatedRepLoss = ceil(jumpPct / 0.03)
-             landingFloor     = ceil(bottom / 2)
-             if first.reps - estimatedRepLoss < landingFloor:
-               requiredReps = landingFloor + estimatedRepLoss
-               cls = requiredReps > top + 6 ? "P_UNPROGRESSABLE" : "P_GATED"
-         and vectors 1, 4 and 33 change with it. SPEC_VERSION goes to "2.0". */
-      requiredReps = bottom + Math.ceil(jumpPct / 0.03);
-      if(requiredReps > top + 6)         cls = "P_UNPROGRESSABLE";
-      else if(first.reps < requiredReps) cls = "P_GATED";
+         landingFloor is half the range bottom rather than a fixed offset
+         because rep ranges differ by slot for reasons that survive a load
+         increase: a high-rep lateral raise slot exists because heavy lateral
+         raises stop being lateral raises, where an 8-12 press slot has no such
+         constraint. requiredReps is left null unless the gate trips, and is
+         read only by HOLD_GATE, which only fires when it has. */
+      const estimatedRepLoss = Math.ceil(jumpPct / 0.03);
+      const landingFloor     = Math.ceil(bottom / 2);
+      if(first.reps - estimatedRepLoss < landingFloor){
+        requiredReps = landingFloor + estimatedRepLoss;
+        cls = requiredReps > top + 6 ? "P_UNPROGRESSABLE" : "P_GATED";
+      }
     }
     if(cls === "P_PASS" && jumpPct < 0.03 && first.reps >= top + 2)                    // §2
       inc = (rackUp(load + stepUp) ? stepUp + rackUp(load + stepUp) : 2 * stepUp);
