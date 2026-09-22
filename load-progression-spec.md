@@ -1024,6 +1024,29 @@ Where it runs, and what each surface does with a failure:
 The render case should be unreachable — the other two surfaces catch it first — and exists so
 that if it is ever reached, the failure is visible rather than a quietly empty card.
 
+### 13.8 Optional days
+
+A PROGRAM day may carry `optional: true`. Absent means false.
+
+**It changes no rule.** A day that does not happen is a day with no logged sets, and §1's
+reference week already walks back past those; §13.2's seed walk does the same. Marking a day
+optional adds no engine behaviour, no warning and no prompt — the app must not nag about a day
+whose whole point is that it is allowed not to happen.
+
+Its one effect is on the **weekly volume display**, which shows two figures per muscle and
+always both:
+
+| Figure | Counts |
+|---|---|
+| **Core** | Sets on non-optional days only |
+| **Total** | Sets on every day |
+
+Core is the volume the block delivers in the weeks the optional day does not happen. Showing
+both is how a block is checked for the failure Meso 01 had, where a muscle lived on one day and
+that day was logged once in four weeks: if a muscle's core figure is zero, missing the optional
+day removes it entirely. Where no day is optional the two figures are equal, which is correct
+rather than redundant.
+
 ### 13.5 PROGRAM drift
 
 | Case | Behaviour |
