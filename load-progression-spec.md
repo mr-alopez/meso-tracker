@@ -13,12 +13,12 @@ Version 2.0 · 31 Aug 2026 — §4 is reshaped from a **rep-buffer requirement**
 records two decisions so they stop being re-derived: fractional plates are out of the solution
 space, and the session report is not URL-prefilled.
 
-> **THE ENGINE DOES NOT YET IMPLEMENT §4 AS WRITTEN BELOW.** The document is merged; the code
-> still encodes the v1.9 gate, deliberately. A rule that newly permits 20% load jumps must not
-> take effect in week 3 of a block at 1 RIR. It ships with the §13 block-creation work, and
-> costs nothing to defer: week 4 produces no progression suggestions (§7) and week 1 of a new
-> block resolves to `NO_DATA` (§13.3), so the new gate first changes a suggestion in Meso 02
-> week 2 either way. `SPEC_VERSION` in the app therefore reads 1.9 on purpose until then.
+> **§4 v2.0 SHIPPED 22 Sep 2026, at the Meso 01/02 boundary.** The deferral held for the whole
+> of Meso 01: the engine ran the v1.9 gate from 31 August until the block closed, so no
+> suggestion changed under a lifter mid-block, which is what the deferral was for. Meso 01 is
+> complete and exported; Meso 02 has not started. `SPEC_VERSION` now reads 2.1a, matching this
+> document — v2.1 and v2.1a were library data and documentation only, so the engine implements
+> every rule in it.
 
 Version 1.9 · 30 Aug 2026 — §13 mesocycle lifecycle (block creation, seeding, the block
 boundary, carry-over, PROGRAM drift, read-only history) and §14 substitution eligibility, which
